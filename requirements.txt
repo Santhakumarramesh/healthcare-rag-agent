@@ -6,7 +6,7 @@ langgraph==0.4.1
 openai==1.78.0
 
 # Vector Stores
-faiss-cpu==1.11.0
+faiss-cpu>=1.13.1
 sentence-transformers==4.1.0
 pinecone==6.0.0
 
