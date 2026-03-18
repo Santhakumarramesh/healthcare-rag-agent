@@ -1,6 +1,9 @@
 # ============================================================
-# requirements.txt — FULL LOCAL DEVELOPMENT
+# requirements-deploy.txt — RENDER PRODUCTION (lightweight)
+# Strips heavy ML deps: torch, sentence-transformers, ragas
+# Uses OpenAI embeddings instead of local SentenceTransformer
 # ============================================================
+
 # Core LLM & Orchestration
 langchain==0.3.25
 langchain-openai==0.3.16
@@ -8,9 +11,8 @@ langchain-community==0.3.24
 langgraph==0.4.1
 openai==1.78.0
 
-# Vector Stores
+# Vector Stores (FAISS only — no sentence-transformers/torch)
 faiss-cpu==1.9.0
-sentence-transformers==4.1.0
 pinecone==6.0.0
 
 # API Backend
@@ -19,18 +21,13 @@ uvicorn[standard]==0.34.2
 pydantic==2.11.4
 python-multipart==0.0.20
 
-# UI
-streamlit==1.45.1
-
-# Evaluation
-ragas==0.2.15
-datasets==3.6.0
+# Keyword search
+rank-bm25==0.2.2
 
 # Data & Utilities
 pypdf==5.4.0
-python-docx==1.1.2
 tiktoken==0.9.0
-numpy==2.2.5
+numpy==1.26.4
 pandas==2.2.3
 python-dotenv==1.1.0
 httpx==0.28.1
@@ -38,6 +35,3 @@ httpx==0.28.1
 # Monitoring & Logging
 loguru==0.7.3
 prometheus-client==0.22.0
-pytest-asyncio==0.26.0
-rank-bm25==0.2.2
-langchain-nvidia-ai-endpoints==0.3.9

@@ -1,0 +1,5 @@
+# requirements for Streamlit Cloud deployment (UI only)
+# The UI just calls the FastAPI backend — no ML deps needed
+streamlit==1.45.1
+requests==2.32.3
+python-dotenv==1.1.0

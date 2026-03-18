@@ -1,6 +1,8 @@
 """
 Document ingestion pipeline.
 Supports: raw text, PDF files → chunked → embedded → FAISS index.
+Uses OpenAI embeddings on Render (no torch/sentence-transformers needed).
+Falls back to SentenceTransformer locally.
 """
 import os
 import sys
@@ -10,13 +12,32 @@ from typing import Optional
 
 import faiss
 import numpy as np
-from sentence_transformers import SentenceTransformer
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from loguru import logger
 
 sys.path.append(str(Path(__file__).parent.parent))
 from utils.config import config
 from data.sample_medical_faq import get_documents_as_text
+
+
+def _get_embedder():
+    """
+    Use OpenAI embeddings in production (lightweight, no torch).
+    Fall back to SentenceTransformer locally when no API key is set.
+    """
+    if config.OPENAI_API_KEY and config.OPENAI_API_KEY not in ("", "sk-your-key-here"):
+        from langchain_openai import OpenAIEmbeddings
+        logger.info("Using OpenAI embeddings (text-embedding-3-small)")
+        embedder = OpenAIEmbeddings(
+            model="text-embedding-3-small",
+            openai_api_key=config.OPENAI_API_KEY
+        )
+        return embedder, 1536
+    else:
+        from sentence_transformers import SentenceTransformer
+        logger.info(f"Using SentenceTransformer: {config.EMBEDDING_MODEL}")
+        model = SentenceTransformer(config.EMBEDDING_MODEL)
+        return model, model.get_sentence_embedding_dimension()
 
 
 class DocumentIngestionPipeline:
@@ -26,9 +47,7 @@ class DocumentIngestionPipeline:
     """
 
     def __init__(self):
-        logger.info(f"Loading embedding model: {config.EMBEDDING_MODEL}")
-        self.embedder = SentenceTransformer(config.EMBEDDING_MODEL)
-        self.embedding_dim = self.embedder.get_sentence_embedding_dimension()
+        self.embedder, self.embedding_dim = _get_embedder()
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=512,
             chunk_overlap=64,
@@ -37,6 +56,21 @@ class DocumentIngestionPipeline:
         self.index_path = Path(config.FAISS_INDEX_PATH)
         self.index_path.mkdir(parents=True, exist_ok=True)
         logger.info(f"Embedding dim: {self.embedding_dim} | Index path: {self.index_path}")
+
+    def embed_texts(self, texts: list) -> np.ndarray:
+        """Embed texts using OpenAI or SentenceTransformer depending on environment."""
+        logger.info(f"Embedding {len(texts)} chunks...")
+        from langchain_openai import OpenAIEmbeddings
+        if isinstance(self.embedder, OpenAIEmbeddings):
+            # OpenAI batch embedding
+            embeddings = self.embedder.embed_documents(texts)
+            return np.array(embeddings, dtype="float32")
+        else:
+            # SentenceTransformer local
+            embeddings = self.embedder.encode(
+                texts, batch_size=32, show_progress_bar=True, normalize_embeddings=True
+            )
+            return embeddings.astype("float32")
 
     def chunk_documents(self, documents: list) -> list:
         """Split documents into overlapping chunks for better retrieval."""
@@ -56,18 +90,6 @@ class DocumentIngestionPipeline:
         logger.info(f"Chunked {len(documents)} documents -> {len(chunks)} chunks")
         return chunks
 
-    def embed_chunks(self, chunks: list) -> np.ndarray:
-        """Generate embeddings for all chunks using SentenceTransformers."""
-        texts = [c["text"] for c in chunks]
-        logger.info(f"Embedding {len(texts)} chunks...")
-        embeddings = self.embedder.encode(
-            texts,
-            batch_size=32,
-            show_progress_bar=True,
-            normalize_embeddings=True,
-        )
-        return embeddings.astype("float32")
-
     def build_faiss_index(self, embeddings: np.ndarray) -> faiss.Index:
         """Build FAISS IndexFlatIP (inner product = cosine for normalized vectors)."""
         index = faiss.IndexFlatIP(self.embedding_dim)
@@ -76,14 +98,12 @@ class DocumentIngestionPipeline:
         return index
 
     def save_index(self, index: faiss.Index, chunks: list):
-        """Persist FAISS index and chunk metadata to disk."""
         faiss.write_index(index, str(self.index_path / "index.faiss"))
         with open(self.index_path / "chunks.pkl", "wb") as f:
             pickle.dump(chunks, f)
         logger.success(f"Index saved to {self.index_path}")
 
     def load_index(self):
-        """Load existing FAISS index and metadata from disk."""
         index = faiss.read_index(str(self.index_path / "index.faiss"))
         with open(self.index_path / "chunks.pkl", "rb") as f:
             chunks = pickle.load(f)
@@ -97,7 +117,6 @@ class DocumentIngestionPipeline:
         )
 
     def ingest_pdf(self, pdf_path: str) -> list:
-        """Ingest a PDF file and return document dicts."""
         from pypdf import PdfReader
         reader = PdfReader(pdf_path)
         documents = []
@@ -113,13 +132,11 @@ class DocumentIngestionPipeline:
                         "source": pdf_path,
                     }
                 })
-        logger.info(f"Extracted {len(documents)} pages from {pdf_path}")
         return documents
 
     def run(self, extra_pdf_paths: Optional[list] = None, force_rebuild: bool = False):
-        """Main ingestion pipeline runner."""
         if self.index_exists() and not force_rebuild:
-            logger.info("Index already exists. Use force_rebuild=True to rebuild.")
+            logger.info("Index already exists.")
             return self.load_index()
 
         documents = get_documents_as_text()
@@ -131,20 +148,16 @@ class DocumentIngestionPipeline:
                     documents.extend(self.ingest_pdf(pdf_path))
 
         chunks = self.chunk_documents(documents)
-        embeddings = self.embed_chunks(chunks)
+        texts = [c["text"] for c in chunks]
+        embeddings = self.embed_texts(texts)
         index = self.build_faiss_index(embeddings)
         self.save_index(index, chunks)
-
         return index, chunks
 
 
 if __name__ == "__main__":
-    import os
     pipeline = DocumentIngestionPipeline()
-
-    # Also ingest the curated healthcare knowledge base if it exists
     kb_path = Path(__file__).parent.parent / "data" / "healthcare_knowledge_base.md"
     extra = [str(kb_path)] if kb_path.exists() else []
-
     pipeline.run(extra_pdf_paths=extra, force_rebuild=True)
     logger.success(f"Ingestion complete! Index at: {pipeline.index_path}")
