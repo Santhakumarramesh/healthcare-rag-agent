@@ -9,12 +9,25 @@ from dataclasses import dataclass
 
 import faiss
 import numpy as np
-from sentence_transformers import SentenceTransformer, CrossEncoder
 from loguru import logger
 from pinecone import Pinecone
-from langchain_nvidia_ai_endpoints import NVIDIARerank
 from rank_bm25 import BM25Okapi
 import re
+
+# sentence-transformers pulls torch (~2 GB) — not installed on Render.
+# langchain-nvidia-ai-endpoints pulls CUDA packages — not installed on Render.
+# Both are gracefully optional; OpenAI embeddings are used instead.
+try:
+    from sentence_transformers import SentenceTransformer, CrossEncoder
+    _SENTENCE_TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    _SENTENCE_TRANSFORMERS_AVAILABLE = False
+
+try:
+    from langchain_nvidia_ai_endpoints import NVIDIARerank
+    _NVIDIA_RERANK_AVAILABLE = True
+except ImportError:
+    _NVIDIA_RERANK_AVAILABLE = False
 
 sys.path.append(str(Path(__file__).parent.parent))
 from utils.config import config
@@ -37,28 +50,14 @@ class HybridRetriever:
 
     def __init__(self):
         logger.info("Initializing HybridRetriever...")
-        self.embedder = SentenceTransformer(config.EMBEDDING_MODEL)
-        # Initialize Reranker (Local or NVIDIA)
-        if config.NVIDIA_API_KEY and config.NVIDIA_API_KEY != "nvapi-your-key-here":
-            logger.debug(f"Using NVIDIA Reranker: {config.NVIDIA_RERANK_MODEL}")
-            self.nvidia_reranker = NVIDIARerank(
-                model=config.NVIDIA_RERANK_MODEL,
-                api_key=config.NVIDIA_API_KEY
-            )
-            self.rerank_model = None
-        else:
-            logger.debug("Using local MiniLM Reranker")
-            self.rerank_model = CrossEncoder(
-                "cross-encoder/ms-marco-MiniLM-L-6-v2",
-                device="cpu"
-            )
-            self.nvidia_reranker = None
-        
+        self._init_embedder()
+        self._init_reranker()
+
         self.index = None
         self.chunks = None
         self.pinecone_index = None
         self.bm25 = None
-        
+
         try:
             self._load_index()
         except FileNotFoundError as e:
@@ -69,6 +68,57 @@ class HybridRetriever:
                 logger.error("No vector store available (FAISS missing and Pinecone not configured).")
 
         logger.success("HybridRetriever ready.")
+
+    def _init_embedder(self):
+        """
+        Use OpenAI embeddings when OPENAI_API_KEY is set (matches ingest.py logic).
+        Fall back to SentenceTransformer locally when no API key is configured.
+        This must stay consistent with ingest.py's _get_embedder() to avoid dimension mismatches.
+        """
+        if config.OPENAI_API_KEY and config.OPENAI_API_KEY not in ("", "sk-your-key-here"):
+            from langchain_openai import OpenAIEmbeddings
+            logger.info("Using OpenAI embeddings (text-embedding-3-small)")
+            self._openai_embedder = OpenAIEmbeddings(
+                model="text-embedding-3-small",
+                openai_api_key=config.OPENAI_API_KEY,
+            )
+            self._embedding_dim = 1536
+            self._use_openai = True
+            self.embedder = None
+        elif _SENTENCE_TRANSFORMERS_AVAILABLE:
+            logger.info(f"Using SentenceTransformer: {config.EMBEDDING_MODEL}")
+            self.embedder = SentenceTransformer(config.EMBEDDING_MODEL)
+            self._embedding_dim = self.embedder.get_sentence_embedding_dimension()
+            self._use_openai = False
+            self._openai_embedder = None
+        else:
+            raise RuntimeError(
+                "No embedder available. Set OPENAI_API_KEY or install sentence-transformers."
+            )
+
+    def _init_reranker(self):
+        """
+        Use NVIDIA NIM reranker when key is set, local CrossEncoder when available,
+        or no-op (return Stage 1 scores) on Render where neither is installed.
+        """
+        if _NVIDIA_RERANK_AVAILABLE and config.NVIDIA_API_KEY and config.NVIDIA_API_KEY != "nvapi-your-key-here":
+            logger.debug(f"Using NVIDIA Reranker: {config.NVIDIA_RERANK_MODEL}")
+            self.nvidia_reranker = NVIDIARerank(
+                model=config.NVIDIA_RERANK_MODEL,
+                api_key=config.NVIDIA_API_KEY,
+            )
+            self.rerank_model = None
+        elif _SENTENCE_TRANSFORMERS_AVAILABLE:
+            logger.debug("Using local MiniLM Reranker")
+            self.rerank_model = CrossEncoder(
+                "cross-encoder/ms-marco-MiniLM-L-6-v2",
+                device="cpu",
+            )
+            self.nvidia_reranker = None
+        else:
+            logger.info("No reranker installed; returning Stage 1 ranked results directly.")
+            self.rerank_model = None
+            self.nvidia_reranker = None
 
     def _load_pinecone(self):
         """Initialize Pinecone for cloud-hosted retrieval."""
@@ -110,12 +160,16 @@ class HybridRetriever:
 
     def embed_query(self, query: str) -> np.ndarray:
         """Embed the user query using the same model as document embeddings."""
-        embedding = self.embedder.encode(
-            [query],
-            normalize_embeddings=True,
-            show_progress_bar=False,
-        )
-        return embedding.astype("float32")
+        if self._use_openai:
+            embedding = self._openai_embedder.embed_query(query)
+            return np.array([embedding], dtype="float32")
+        else:
+            embedding = self.embedder.encode(
+                [query],
+                normalize_embeddings=True,
+                show_progress_bar=False,
+            )
+            return embedding.astype("float32")
 
     def faiss_search(self, query_embedding: np.ndarray, top_k: int) -> list:
         """Stage 1: Fast approximate nearest neighbor search (Local)."""
@@ -181,9 +235,11 @@ class HybridRetriever:
         """Stage 1: Vector search in the cloud (Pinecone)."""
         if not self.pinecone_index:
             return []
-            
-        # Get query embedding as a list
-        embedding = self.embedder.encode(query).tolist()
+
+        if self._use_openai:
+            embedding = self._openai_embedder.embed_query(query)
+        else:
+            embedding = self.embedder.encode(query).tolist()
         
         response = self.pinecone_index.query(
             vector=embedding,

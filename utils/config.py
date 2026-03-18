@@ -29,6 +29,9 @@ class Config:
     PINECONE_INDEX_NAME: str = os.getenv("PINECONE_INDEX_NAME", "healthcare-rag")
     PINECONE_ENVIRONMENT: str = os.getenv("PINECONE_ENVIRONMENT", "us-east-1")
 
+    # Tavily web search (optional)
+    TAVILY_API_KEY: str = os.getenv("TAVILY_API_KEY", "")
+
     # Retrieval
     MAX_RETRIEVED_DOCS: int = int(os.getenv("MAX_RETRIEVED_DOCS", "5"))
     EVAL_SAMPLE_SIZE: int = 20

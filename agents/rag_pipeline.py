@@ -15,10 +15,11 @@ from typing import TypedDict, Annotated, List, Dict, Any
 from enum import Enum
 
 from langchain_openai import ChatOpenAI
-from langchain_nvidia_ai_endpoints import ChatNVIDIA
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
-from tavily import TavilyClient
 from langgraph.graph import StateGraph, END
+
+# langchain-nvidia-ai-endpoints and tavily are optional (not installed on Render).
+# They are imported lazily inside the functions that need them.
 import operator
 from loguru import logger
 
@@ -77,20 +78,24 @@ class AgentState(TypedDict):
 def get_llm(temperature: float = 0.0, streaming: bool = False):
     """Factory to return the appropriate LLM based on configuration."""
     if config.NVIDIA_API_KEY and config.NVIDIA_API_KEY != "nvapi-your-key-here":
-        logger.debug(f"Using NVIDIA NIM: {config.NVIDIA_MODEL}")
-        return ChatNVIDIA(
-            model=config.NVIDIA_MODEL,
-            api_key=config.NVIDIA_API_KEY,
-            temperature=temperature,
-            streaming=streaming
-        )
-    
+        try:
+            from langchain_nvidia_ai_endpoints import ChatNVIDIA
+            logger.debug(f"Using NVIDIA NIM: {config.NVIDIA_MODEL}")
+            return ChatNVIDIA(
+                model=config.NVIDIA_MODEL,
+                api_key=config.NVIDIA_API_KEY,
+                temperature=temperature,
+                streaming=streaming,
+            )
+        except ImportError:
+            logger.warning("langchain_nvidia_ai_endpoints not installed; falling back to OpenAI.")
+
     logger.debug(f"Using OpenAI: {config.OPENAI_MODEL}")
     return ChatOpenAI(
         api_key=config.OPENAI_API_KEY,
         model=config.OPENAI_MODEL,
         temperature=temperature,
-        streaming=streaming
+        streaming=streaming,
     )
 
 
@@ -228,6 +233,7 @@ async def web_search_agent(state: AgentState) -> AgentState:
         return {**state, "context": "Error: Web search required but API key missing.", "agent_trace": ["WEB_SEARCH: error - missing key"]}
 
     try:
+        from tavily import TavilyClient
         tavily = TavilyClient(api_key=config.TAVILY_API_KEY)
         # Search for medical news/recalls
         response = tavily.search(query=query, search_depth="advanced", max_results=5)
