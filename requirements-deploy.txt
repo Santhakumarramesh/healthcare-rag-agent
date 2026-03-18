@@ -35,3 +35,7 @@ httpx==0.28.1
 # Monitoring & Logging
 loguru==0.7.3
 prometheus-client==0.22.0
+
+# Multi-Agent External Tools
+tavily-python==0.7.23
+langchain-nvidia-ai-endpoints==1.2.1
