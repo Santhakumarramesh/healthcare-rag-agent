@@ -19,6 +19,7 @@ import json
 
 sys.path.append(str(Path(__file__).parent.parent))
 from agents.rag_pipeline import HealthcareRAGPipeline
+from api.records import router as records_router
 from utils.config import config
 
 REQUEST_COUNT = Counter("rag_requests_total", "Total RAG requests", ["intent"])
@@ -58,6 +59,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(records_router)
 
 
 class ChatRequest(BaseModel):
