@@ -3,26 +3,46 @@ services:
   - type: web
     name: healthcare-rag-api
     env: python
-    buildCommand: pip install -r requirements.txt
+    region: oregon
+    plan: free
+    buildCommand: |
+      pip install -r requirements.txt &&
+      python vectorstore/ingest.py
     startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.0
+        value: 3.11.9
       - key: OPENAI_API_KEY
-        sync: false # User must set this in Render dashboard
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
+      - key: EMBEDDING_MODEL
+        value: sentence-transformers/all-MiniLM-L6-v2
       - key: VECTOR_STORE_TYPE
         value: faiss
       - key: FAISS_INDEX_PATH
-        value: data/faiss_index
+        value: ./vectorstore/faiss_index
+      - key: MAX_RETRIEVED_DOCS
+        value: 5
+      - key: RERANK_TOP_K
+        value: 3
+      - key: CONFIDENCE_THRESHOLD
+        value: "0.6"
+      - key: LOG_LEVEL
+        value: INFO
+      - key: APP_ENV
+        value: production
 
   # Streamlit UI
   - type: web
     name: healthcare-rag-ui
     env: python
+    region: oregon
+    plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: streamlit run streamlit_app/app.py --server.port $PORT
+    startCommand: streamlit run streamlit_app/app.py --server.port $PORT --server.headless true --server.enableCORS false
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.0
+        value: 3.11.9
       - key: API_BASE_URL
-        value: https://healthcare-rag-api.onrender.com # Update after first deploy
+        value: https://healthcare-rag-api.onrender.com

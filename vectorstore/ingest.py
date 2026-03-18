@@ -139,6 +139,12 @@ class DocumentIngestionPipeline:
 
 
 if __name__ == "__main__":
+    import os
     pipeline = DocumentIngestionPipeline()
-    pipeline.run(force_rebuild=True)
-    logger.success("Ingestion complete!")
+
+    # Also ingest the curated healthcare knowledge base if it exists
+    kb_path = Path(__file__).parent.parent / "data" / "healthcare_knowledge_base.md"
+    extra = [str(kb_path)] if kb_path.exists() else []
+
+    pipeline.run(extra_pdf_paths=extra, force_rebuild=True)
+    logger.success(f"Ingestion complete! Index at: {pipeline.index_path}")
