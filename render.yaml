@@ -1,0 +1,28 @@
+services:
+  # FastAPI Backend
+  - type: web
+    name: healthcare-rag-api
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: OPENAI_API_KEY
+        sync: false # User must set this in Render dashboard
+      - key: VECTOR_STORE_TYPE
+        value: faiss
+      - key: FAISS_INDEX_PATH
+        value: data/faiss_index
+
+  # Streamlit UI
+  - type: web
+    name: healthcare-rag-ui
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: streamlit run streamlit_app/app.py --server.port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: API_BASE_URL
+        value: https://healthcare-rag-api.onrender.com # Update after first deploy
