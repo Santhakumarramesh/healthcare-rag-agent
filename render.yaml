@@ -9,7 +9,7 @@ services:
     startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.9
+        value: 3.11.10
       - key: OPENAI_API_KEY
         sync: false
       - key: OPENAI_MODEL
@@ -31,8 +31,7 @@ services:
       - key: APP_ENV
         value: production
 
-  # ── Streamlit UI (deploy on Streamlit Cloud instead — see README)
-  # Kept here for reference only; Streamlit Cloud is recommended for UI
+  # ── Streamlit UI
   - type: web
     name: healthcare-rag-ui
     env: python
@@ -42,6 +41,6 @@ services:
     startCommand: streamlit run streamlit_app/app.py --server.port $PORT --server.headless true
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.9
+        value: 3.11.10
       - key: API_BASE_URL
         value: https://healthcare-rag-api.onrender.com
