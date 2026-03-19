@@ -101,6 +101,61 @@ End EVERY response with:
 "⚕️ Remember: This is based only on the records you uploaded. Always discuss your results with your healthcare provider.\""""
 
 
+HEALTH_RECOMMENDATIONS_PROMPT = """You are an expert health advisor analyzing medical lab results to provide personalized, actionable health recommendations.
+
+You will receive structured lab results with patient information, lab values, and their status (NORMAL/HIGH/LOW/CRITICAL).
+
+Your task is to generate a comprehensive health report with:
+
+1. **Overall Health Assessment** (2-3 sentences)
+   - Summarize the overall health status
+   - Highlight if results are generally good or if there are concerns
+
+2. **Specific Recommendations for Abnormal Values** (if any)
+   - For each abnormal value, provide:
+     * What it means in simple terms
+     * Potential causes (general, not diagnostic)
+     * Specific lifestyle changes to address it
+     * When to see a doctor (urgency level)
+
+3. **Dietary Recommendations**
+   - Foods to eat more of (based on results)
+   - Foods to limit or avoid (based on results)
+   - Specific meal suggestions
+   - Hydration advice
+
+4. **Lifestyle & Exercise Recommendations**
+   - Exercise type and frequency
+   - Sleep recommendations
+   - Stress management tips
+   - Other lifestyle modifications
+
+5. **Preventive Care Suggestions**
+   - Follow-up tests needed
+   - Monitoring frequency
+   - Preventive measures
+
+6. **Action Plan** (prioritized steps)
+   - Immediate actions (next 24-48 hours)
+   - Short-term goals (next 1-2 weeks)
+   - Long-term goals (next 1-3 months)
+
+CRITICAL RULES:
+- Be encouraging and positive while being honest about concerns
+- Use simple, non-medical language
+- Provide SPECIFIC, ACTIONABLE advice (not generic "eat healthy")
+- If all values are normal, congratulate and provide maintenance tips
+- Never diagnose diseases or prescribe medications
+- Always emphasize consulting a healthcare provider for medical decisions
+- Be culturally sensitive with dietary recommendations
+- Consider the patient's age and gender if provided
+
+Format your response in clear sections with emojis for readability.
+
+End with:
+"⚕️ **Important**: These are general wellness recommendations based on your lab results. Always consult your healthcare provider before making significant health changes, especially if you have existing medical conditions or take medications.\""""
+
+
 # ── Agent functions ────────────────────────────────────────────────────────────
 
 async def extract_record_structure(full_text: str) -> dict:
@@ -148,6 +203,93 @@ async def extract_record_structure(full_text: str) -> dict:
             "abnormal_flags": [], "allergies": [], "recommended_actions": [],
             "patient_info": {},
         }
+
+
+async def generate_health_recommendations(extraction_result: dict) -> str:
+    """
+    Generate personalized health recommendations based on extracted lab results.
+    Uses GPT to provide dietary advice, lifestyle suggestions, and action plans.
+    """
+    llm = _llm(temperature=0.3)  # Slightly higher temp for more natural recommendations
+    
+    # Build a structured summary of the results for GPT
+    patient_info = extraction_result.get("patient_info", {})
+    lab_values = extraction_result.get("lab_values", [])
+    diagnoses = extraction_result.get("diagnoses", [])
+    medications = extraction_result.get("medications", [])
+    abnormal_flags = extraction_result.get("abnormal_flags", [])
+    
+    # Create a readable summary
+    summary_parts = []
+    
+    # Patient info
+    if patient_info:
+        summary_parts.append("PATIENT INFORMATION:")
+        if patient_info.get("name") and patient_info["name"] != "Not specified":
+            summary_parts.append(f"- Name: {patient_info['name']}")
+        if patient_info.get("dob") and patient_info["dob"] != "Not specified":
+            summary_parts.append(f"- Age/DOB: {patient_info['dob']}")
+        summary_parts.append("")
+    
+    # Lab values
+    if lab_values:
+        summary_parts.append("LAB RESULTS:")
+        for lab in lab_values:
+            status_marker = "⚠️" if lab.get("status") in ["HIGH", "LOW", "CRITICAL"] else "✓"
+            summary_parts.append(
+                f"{status_marker} {lab.get('name')}: {lab.get('value')} "
+                f"(Normal: {lab.get('normal_range', 'N/A')}) - Status: {lab.get('status')}"
+            )
+        summary_parts.append("")
+    
+    # Abnormal flags
+    if abnormal_flags:
+        summary_parts.append("ABNORMAL FINDINGS:")
+        for flag in abnormal_flags:
+            summary_parts.append(f"- {flag}")
+        summary_parts.append("")
+    
+    # Diagnoses
+    if diagnoses:
+        summary_parts.append("DIAGNOSES:")
+        for dx in diagnoses:
+            summary_parts.append(f"- {dx}")
+        summary_parts.append("")
+    
+    # Medications
+    if medications:
+        summary_parts.append("CURRENT MEDICATIONS:")
+        for med in medications:
+            if isinstance(med, dict):
+                summary_parts.append(f"- {med.get('name', 'Unknown')}: {med.get('dose', '')} {med.get('frequency', '')}")
+            else:
+                summary_parts.append(f"- {med}")
+        summary_parts.append("")
+    
+    summary = "\n".join(summary_parts)
+    
+    if not summary.strip():
+        return (
+            "Unable to generate recommendations - no lab values found in the report.\n\n"
+            "⚕️ Please upload a medical report with lab results to receive personalized recommendations."
+        )
+    
+    messages = [
+        SystemMessage(content=HEALTH_RECOMMENDATIONS_PROMPT),
+        HumanMessage(content=f"Please analyze these lab results and provide personalized health recommendations:\n\n{summary}"),
+    ]
+    
+    try:
+        response = await llm.ainvoke(messages)
+        logger.info("[RecordsAgent] Health recommendations generated successfully.")
+        return response.content
+    except Exception as e:
+        logger.error(f"[RecordsAgent] Recommendation generation failed: {e}")
+        return (
+            "Sorry, I encountered an error while generating recommendations. "
+            "Please try again or consult your healthcare provider.\n\n"
+            "⚕️ Always discuss your results with your healthcare provider."
+        )
 
 
 async def answer_record_question(question: str, context_chunks: list) -> str:

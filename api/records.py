@@ -19,7 +19,7 @@ from loguru import logger
 
 sys.path.append(str(Path(__file__).parent.parent))
 from vectorstore.personal_store import personal_store
-from agents.records_agent import extract_record_structure, answer_record_question
+from agents.records_agent import extract_record_structure, answer_record_question, generate_health_recommendations
 
 router = APIRouter(prefix="/records", tags=["Medical Records"])
 
@@ -89,10 +89,16 @@ async def upload_record(
 
 
 @router.post("/analyze")
-async def analyze_records(session_id: str = Form(...)):
+async def analyze_records(
+    session_id: str = Form(...),
+    include_recommendations: bool = Form(True)
+):
     """
     Run structured extraction on all records uploaded in this session.
     Returns a JSON object with diagnoses, lab values, medications, etc.
+    
+    If include_recommendations=True, also generates personalized health recommendations
+    including dietary advice, lifestyle suggestions, and action plans.
     """
     full_text = personal_store.get_full_text(session_id)
     if not full_text:
@@ -103,9 +109,25 @@ async def analyze_records(session_id: str = Form(...)):
 
     start = time.time()
     result = await extract_record_structure(full_text)
-    latency_ms = (time.time() - start) * 1000
+    extraction_latency = (time.time() - start) * 1000
+    
+    # Generate personalized health recommendations
+    recommendations = None
+    recommendations_latency = 0
+    if include_recommendations:
+        rec_start = time.time()
+        recommendations = await generate_health_recommendations(result)
+        recommendations_latency = (time.time() - rec_start) * 1000
+    
+    total_latency = extraction_latency + recommendations_latency
 
-    return {**result, "latency_ms": round(latency_ms, 2)}
+    return {
+        **result,
+        "health_recommendations": recommendations,
+        "latency_ms": round(total_latency, 2),
+        "extraction_latency_ms": round(extraction_latency, 2),
+        "recommendations_latency_ms": round(recommendations_latency, 2),
+    }
 
 
 @router.post("/query", response_model=RecordQueryResponse)

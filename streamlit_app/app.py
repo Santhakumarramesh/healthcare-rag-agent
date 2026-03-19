@@ -1321,13 +1321,30 @@ elif st.session_state.current_page == "reports":
                     st.markdown(f"- {flag}")
                 st.markdown("<br>", unsafe_allow_html=True)
             
+            # AI-Powered Health Recommendations
+            health_recommendations = result.get("health_recommendations")
+            if health_recommendations:
+                st.markdown("---")
+                st.markdown("### 🤖 AI Health Recommendations")
+                st.markdown("*Personalized suggestions based on your lab results*")
+                st.markdown("<br>", unsafe_allow_html=True)
+                
+                # Display recommendations in an expandable section for better UX
+                with st.expander("📋 View Detailed Health Recommendations", expanded=True):
+                    st.markdown(health_recommendations)
+            
             # Safety Note
             st.warning("**When to Seek Medical Attention:** If you notice any abnormal values or have concerns, consult your healthcare provider immediately.")
             
             # Processing Time
             latency = result.get("latency_ms", 0)
             if latency:
-                st.caption(f"Analysis completed in {latency/1000:.2f} seconds")
+                extraction_time = result.get("extraction_latency_ms", 0)
+                recommendations_time = result.get("recommendations_latency_ms", 0)
+                st.caption(
+                    f"Analysis completed in {latency/1000:.2f}s "
+                    f"(Extraction: {extraction_time/1000:.1f}s, Recommendations: {recommendations_time/1000:.1f}s)"
+                )
         else:
             st.info("Upload a report to see analysis results here.")
 
