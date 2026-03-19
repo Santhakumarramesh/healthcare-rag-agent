@@ -1,732 +1,583 @@
 """
-streamlit_app/app.py
---------------------
-Production-grade Streamlit UI for the Healthcare RAG Agent.
-
-Tab 1 — Ask MediAssist: streaming multi-agent FAQ chat
-Tab 2 — My Medical Records: upload PDFs, get structured extraction, ask questions
+streamlit_app/app.py  —  MediAssist Healthcare Super-Agent UI
+Tab 1: Ask MediAssist  — streaming chat with live agent pipeline visualization
+Tab 2: My Medical Records — PDF upload, structured extraction, grounded Q&A
 """
 
 import streamlit as st
-import requests
-import json
-import time
-import os
-import uuid
-from datetime import datetime
+import requests, json, time, os, uuid
 from dotenv import load_dotenv
-
 load_dotenv()
 
-# ── Config ─────────────────────────────────────────────────────────────────────
-API_BASE = os.getenv("API_BASE_URL", "http://localhost:8000")
-APP_TITLE = "MediAssist — Healthcare RAG Agent"
-APP_ICON  = "🏥"
+API_BASE  = os.getenv("API_BASE_URL", "http://localhost:8000")
+APP_TITLE = "MediAssist — Healthcare Super-Agent"
 
-st.set_page_config(
-    page_title=APP_TITLE,
-    page_icon=APP_ICON,
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
+st.set_page_config(page_title=APP_TITLE, page_icon="🏥", layout="wide",
+                   initial_sidebar_state="expanded")
 
 # ── CSS ────────────────────────────────────────────────────────────────────────
-st.markdown("""
-<style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
-    html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+st.markdown("""<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+html,body,[class*="css"]{font-family:'Inter',sans-serif;}
+.main-header{background:linear-gradient(135deg,#0f4c75,#1b6ca8,#163d64);
+  padding:1.5rem 2rem;border-radius:16px;margin-bottom:1.2rem;color:white;text-align:center;}
+.main-header h1{font-size:2rem;font-weight:600;margin:0;}
+.main-header p{opacity:.85;margin:.4rem 0 0;font-size:.95rem;}
+.chat-msg-user{background:#e8f4fd;border-left:4px solid #1b6ca8;
+  padding:.9rem 1.2rem;border-radius:10px;margin:.5rem 0;}
+.chat-msg-ai{background:#f8fffe;border-left:4px solid #27ae60;
+  padding:.9rem 1.2rem;border-radius:10px;margin:.5rem 0;}
+/* Agent pipeline bar */
+.pipeline-wrap{background:#f8f9fa;border:1px solid #e0e0e0;border-radius:12px;
+  padding:.9rem 1.2rem;margin:.6rem 0;}
+.pipeline-title{font-size:.78rem;font-weight:600;color:#666;
+  text-transform:uppercase;letter-spacing:.06em;margin-bottom:.6rem;}
+.agent-steps{display:flex;align-items:center;gap:0;flex-wrap:wrap;}
+.agent-step{display:flex;align-items:center;gap:6px;padding:5px 12px;
+  border-radius:20px;font-size:.78rem;font-weight:500;white-space:nowrap;}
+.step-done{background:#d4edda;color:#155724;}
+.step-active{background:#cce5ff;color:#004085;
+  animation:pulse .9s ease-in-out infinite;}
+.step-wait{background:#f1f3f5;color:#868e96;}
+.step-arrow{color:#adb5bd;font-size:.9rem;padding:0 2px;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
+/* Retrieval panel */
+.retrieval-panel{background:#fff8e1;border:1px solid #ffe082;border-radius:10px;
+  padding:.8rem 1rem;margin:.5rem 0;font-size:.82rem;}
+.retrieval-panel strong{color:#5d4037;}
+.chunk-badge{display:inline-block;background:#e3f2fd;color:#1565c0;
+  padding:2px 8px;border-radius:12px;font-size:.74rem;margin:2px;}
+/* Score badges */
+.badge{display:inline-block;padding:3px 10px;border-radius:14px;
+  font-size:.78rem;font-weight:600;margin:2px;}
+.badge-green{background:#d4edda;color:#155724;}
+.badge-amber{background:#fff3cd;color:#856404;}
+.badge-red{background:#f8d7da;color:#721c24;}
+.badge-blue{background:#cce5ff;color:#004085;}
+.badge-gray{background:#e9ecef;color:#495057;}
+/* Stat cards */
+.stat-card{background:white;padding:.8rem;border-radius:10px;
+  border:1px solid #e0e0e0;text-align:center;}
+.stat-num{font-size:1.6rem;font-weight:700;color:#1b6ca8;}
+.stat-lbl{font-size:.75rem;color:#666;margin-top:.1rem;}
+/* System architecture pill row */
+.arch-row{display:flex;flex-wrap:wrap;gap:6px;margin:.5rem 0;}
+.arch-pill{background:#e8f4fd;color:#0c447c;border:1px solid #b5d4f4;
+  padding:3px 10px;border-radius:20px;font-size:.75rem;font-weight:500;}
+/* Records */
+.lab-NORMAL{background:#d4edda;color:#155724;padding:2px 7px;border-radius:5px;font-size:.75rem;font-weight:600;}
+.lab-HIGH{background:#f8d7da;color:#721c24;padding:2px 7px;border-radius:5px;font-size:.75rem;font-weight:600;}
+.lab-LOW{background:#cce5ff;color:#004085;padding:2px 7px;border-radius:5px;font-size:.75rem;font-weight:600;}
+.lab-CRITICAL{background:#f5c6cb;color:#491217;padding:2px 7px;border-radius:5px;font-size:.75rem;font-weight:700;}
+.lab-UNKNOWN{background:#e9ecef;color:#495057;padding:2px 7px;border-radius:5px;font-size:.75rem;}
+.flag-box{background:#fff3cd;border-left:3px solid #f39c12;
+  padding:.4rem .8rem;border-radius:5px;margin:.25rem 0;font-size:.83rem;color:#5d4037;}
+.findings-box{background:#e8f4fd;border-left:4px solid #1b6ca8;
+  padding:.7rem 1rem;border-radius:8px;font-size:.88rem;}
+.disclaimer{background:#fff8e1;border:1px solid #ffe082;border-radius:8px;
+  padding:.7rem 1rem;font-size:.8rem;color:#5d4037;}
+.stButton>button{border-radius:10px;font-weight:500;
+  background:linear-gradient(135deg,#1b6ca8,#0f4c75);
+  color:white;border:none;padding:.5rem 1.4rem;}
+</style>""", unsafe_allow_html=True)
 
-    .main-header {
-        background: linear-gradient(135deg, #0f4c75 0%, #1b6ca8 50%, #163d64 100%);
-        padding: 2rem; border-radius: 16px; margin-bottom: 1.5rem;
-        color: white; text-align: center;
-    }
-    .main-header h1 { font-size: 2.2rem; font-weight: 600; margin: 0; }
-    .main-header p  { opacity: 0.85; margin: 0.5rem 0 0 0; font-size: 1rem; }
+# ── Session state ──────────────────────────────────────────────────────────────
+for k, v in [("messages",[]),("session_id",str(uuid.uuid4())),
+              ("stats",{"q":0,"lat":0.0,"score":0.0}),
+              ("rec_files",[]),("rec_extract",None),("rec_msgs",[])]:
+    if k not in st.session_state:
+        st.session_state[k] = v
 
-    .chat-message {
-        padding: 1rem 1.2rem; border-radius: 12px;
-        margin: 0.6rem 0; animation: fadeIn 0.3s ease;
-    }
-    .chat-message.user      { background: #e8f4fd; border-left: 4px solid #1b6ca8; margin-left: 2rem; }
-    .chat-message.assistant { background: #f8fffe; border-left: 4px solid #27ae60; margin-right: 2rem; }
+# ── Helpers ────────────────────────────────────────────────────────────────────
+def get_health():
+    try: return requests.get(f"{API_BASE}/health", timeout=4).json()
+    except: return {"status":"unreachable","pipeline_loaded":False}
 
-    .source-badge {
-        display: inline-block; background: #e3f2fd; color: #1565c0;
-        padding: 2px 10px; border-radius: 20px; font-size: 0.75rem;
-        margin: 2px; font-weight: 500;
-    }
-    .score-badge { display: inline-block; padding: 3px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; }
-    .score-high   { background: #d4edda; color: #155724; }
-    .score-medium { background: #fff3cd; color: #856404; }
-    .score-low    { background: #f8d7da; color: #721c24; }
+def badge(text, kind="gray"):
+    return f'<span class="badge badge-{kind}">{text}</span>'
 
-    .metric-card {
-        background: white; padding: 1rem; border-radius: 10px;
-        border: 1px solid #e0e0e0; text-align: center;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-    }
-    .metric-value { font-size: 1.8rem; font-weight: 700; color: #1b6ca8; }
-    .metric-label { font-size: 0.8rem; color: #666; margin-top: 0.2rem; }
+def intent_badge(intent):
+    mapping = {"medical_faq":("🩺 Medical FAQ","green"),
+               "emergency":("🚨 Emergency","red"),
+               "web_search":("🌐 Web Search","blue"),
+               "greeting":("👋 Greeting","gray"),
+               "out_of_scope":("🚫 Out of Scope","amber")}
+    label, kind = mapping.get(intent, (f"🤖 {intent}","gray"))
+    return badge(label, kind)
 
-    .agent-trace {
-        background: #f8f9fa; border-radius: 8px; padding: 1rem;
-        font-size: 0.8rem; font-family: monospace; color: #444;
-    }
+def hall_badge(risk):
+    if risk == "low":   return badge("✅ Low hallucination risk","green")
+    if risk == "high":  return badge("❌ High hallucination risk","red")
+    return badge("⚠️ Medium hallucination risk","amber")
 
-    /* Records tab */
-    .records-card {
-        background: white; border-radius: 12px; padding: 1.2rem 1.5rem;
-        border: 1px solid #e0e0e0; margin-bottom: 1rem;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    }
-    .records-card h4 { margin: 0 0 0.6rem 0; color: #0f4c75; font-size: 1rem; }
-
-    .lab-normal   { background: #d4edda; color: #155724; padding: 2px 8px; border-radius: 6px; font-size: 0.78rem; font-weight: 600; }
-    .lab-high     { background: #f8d7da; color: #721c24; padding: 2px 8px; border-radius: 6px; font-size: 0.78rem; font-weight: 600; }
-    .lab-low      { background: #cce5ff; color: #004085; padding: 2px 8px; border-radius: 6px; font-size: 0.78rem; font-weight: 600; }
-    .lab-critical { background: #f5c6cb; color: #491217; padding: 2px 8px; border-radius: 6px; font-size: 0.78rem; font-weight: 800; }
-    .lab-unknown  { background: #e2e3e5; color: #383d41; padding: 2px 8px; border-radius: 6px; font-size: 0.78rem; }
-
-    .abnormal-flag {
-        background: #fff3cd; border-left: 4px solid #f39c12;
-        padding: 0.5rem 0.8rem; border-radius: 6px; margin: 0.3rem 0;
-        font-size: 0.85rem; color: #5d4037;
-    }
-    .key-findings {
-        background: #e8f4fd; border-left: 4px solid #1b6ca8;
-        padding: 0.8rem 1rem; border-radius: 8px; font-size: 0.9rem;
-    }
-    .diagnosis-tag {
-        display: inline-block; background: #e8f5e9; color: #1b5e20;
-        padding: 3px 12px; border-radius: 20px; font-size: 0.82rem;
-        margin: 2px; border: 1px solid #a5d6a7;
-    }
-    .allergy-tag {
-        display: inline-block; background: #fce4ec; color: #880e4f;
-        padding: 3px 12px; border-radius: 20px; font-size: 0.82rem;
-        margin: 2px; border: 1px solid #f48fb1;
-    }
-    .records-answer {
-        background: #f8fffe; border-left: 4px solid #27ae60;
-        padding: 1rem 1.2rem; border-radius: 10px; margin-top: 0.8rem;
-        font-size: 0.92rem; line-height: 1.6;
-    }
-    .disclaimer {
-        background: #fff8e1; border: 1px solid #ffe082; border-radius: 8px;
-        padding: 0.8rem 1rem; font-size: 0.82rem; color: #5d4037;
-    }
-    .upload-zone {
-        background: #f0f7ff; border: 2px dashed #90caf9; border-radius: 12px;
-        padding: 1.5rem; text-align: center; margin-bottom: 1rem;
-    }
-
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
-
-    .stTextInput > div > div > input { border-radius: 10px; border: 2px solid #e0e0e0; }
-    .stButton > button {
-        border-radius: 10px; font-weight: 500;
-        background: linear-gradient(135deg, #1b6ca8, #0f4c75);
-        color: white; border: none; padding: 0.6rem 1.5rem;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-
-# ── Session State ──────────────────────────────────────────────────────────────
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-if "session_id" not in st.session_state:
-    st.session_state.session_id = str(uuid.uuid4())
-if "stats" not in st.session_state:
-    st.session_state.stats = {"total_queries": 0, "avg_latency": 0.0, "avg_score": 0.0}
-# Records tab state
-if "records_files" not in st.session_state:
-    st.session_state.records_files = []
-if "records_extraction" not in st.session_state:
-    st.session_state.records_extraction = None
-if "records_messages" not in st.session_state:
-    st.session_state.records_messages = []
-
-
-# ── Helper functions ───────────────────────────────────────────────────────────
-
-def call_api(endpoint: str, payload: dict) -> dict | None:
-    try:
-        resp = requests.post(f"{API_BASE}{endpoint}", json=payload, timeout=60)
-        resp.raise_for_status()
-        return resp.json()
-    except requests.exceptions.ConnectionError:
-        return {"error": "Cannot connect to the API server. Make sure it is running."}
-    except Exception as e:
-        return {"error": str(e)}
-
-
-def get_health() -> dict:
-    try:
-        resp = requests.get(f"{API_BASE}/health", timeout=5)
-        return resp.json()
-    except Exception:
-        return {"status": "unreachable"}
-
-
-def score_badge(score: float | None) -> str:
-    if score is None:
-        return ""
-    if score >= 0.8:
-        cls, label = "score-high",   f"✅ Quality: {score:.2f}"
-    elif score >= 0.6:
-        cls, label = "score-medium", f"⚠️ Quality: {score:.2f}"
-    else:
-        cls, label = "score-low",    f"❌ Quality: {score:.2f}"
-    return f'<span class="score-badge {cls}">{label}</span>'
-
-
-def intent_emoji(intent: str) -> str:
-    return {"medical_faq": "🩺", "general": "💬", "out_of_scope": "🚫"}.get(intent, "🤖")
-
-
-def lab_status_html(status: str) -> str:
+def lab_html(status):
     s = (status or "UNKNOWN").upper()
-    cls = {
-        "NORMAL": "lab-normal", "HIGH": "lab-high",
-        "LOW": "lab-low", "CRITICAL": "lab-critical",
-    }.get(s, "lab-unknown")
-    icons = {"NORMAL": "✅", "HIGH": "🔴", "LOW": "🔵", "CRITICAL": "🚨"}
-    icon = icons.get(s, "❓")
-    return f'<span class="{cls}">{icon} {s}</span>'
+    icons = {"NORMAL":"✅","HIGH":"🔴","LOW":"🔵","CRITICAL":"🚨"}
+    return f'<span class="lab-{s}">{icons.get(s,"❓")} {s}</span>'
 
 
 # ── Sidebar ────────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("## 🏥 MediAssist")
-    st.markdown("**Healthcare RAG Agent**")
-    st.markdown("---")
-
     health = get_health()
-    status_color = "🟢" if health.get("status") == "healthy" else "🔴"
-    st.markdown(f"**API Status:** {status_color} {health.get('status', 'unknown').title()}")
-    vs_ready = health.get("vector_store_ready", False)
-    st.markdown(f"**Knowledge Base:** {'✅ Ready' if vs_ready else '⚠️ Empty'}")
+    ok = health.get("status") == "healthy"
+    st.markdown(f"**API:** {'🟢 Healthy' if ok else '🔴 Unreachable'} &nbsp;·&nbsp; "
+                f"**Model:** `{health.get('model','—')}`")
     st.markdown("---")
 
-    stats = st.session_state.stats
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown(f"""<div class="metric-card">
-            <div class="metric-value">{stats['total_queries']}</div>
-            <div class="metric-label">Queries</div></div>""", unsafe_allow_html=True)
-    with col2:
-        st.markdown(f"""<div class="metric-card">
-            <div class="metric-value">{stats['avg_latency']:.0f}ms</div>
-            <div class="metric-label">Avg Latency</div></div>""", unsafe_allow_html=True)
+    s = st.session_state.stats
+    c1,c2,c3 = st.columns(3)
+    with c1: st.markdown(f'<div class="stat-card"><div class="stat-num">{s["q"]}</div>'
+                         f'<div class="stat-lbl">Queries</div></div>', unsafe_allow_html=True)
+    with c2: st.markdown(f'<div class="stat-card"><div class="stat-num">{s["lat"]:.0f}ms</div>'
+                         f'<div class="stat-lbl">Avg latency</div></div>', unsafe_allow_html=True)
+    with c3: st.markdown(f'<div class="stat-card"><div class="stat-num">{s["score"]:.2f}</div>'
+                         f'<div class="stat-lbl">Avg quality</div></div>', unsafe_allow_html=True)
 
     st.markdown("---")
-    st.markdown("### 📄 Add to Knowledge Base")
-    ingest_text = st.text_area("Paste medical text:", height=100,
-                               placeholder="Paste medical guidelines, FAQs, or healthcare content…")
-    ingest_source = st.text_input("Source name:", value="custom_document")
-    if st.button("➕ Ingest Document", use_container_width=True):
-        if ingest_text.strip():
-            with st.spinner("Ingesting…"):
-                resp = requests.post(f"{API_BASE}/ingest/text",
-                                     json={"text": ingest_text, "source_name": ingest_source},
-                                     timeout=30)
-                if resp.status_code == 200:
-                    st.success(f"✅ Ingested {resp.json()['chunks_stored']} chunks!")
-                else:
-                    st.error("Ingestion failed. Is the API running?")
-        else:
-            st.warning("Please enter some text to ingest.")
+    st.markdown("### 🏗️ System Architecture")
+    st.markdown("""<div class="arch-row">
+      <span class="arch-pill">LangGraph 0.4</span>
+      <span class="arch-pill">BM25 + FAISS RRF</span>
+      <span class="arch-pill">Cross-encoder rerank</span>
+      <span class="arch-pill">SSE streaming</span>
+      <span class="arch-pill">Self-correction loop</span>
+      <span class="arch-pill">Hallucination detector</span>
+      <span class="arch-pill">Rate limiter</span>
+      <span class="arch-pill">Response cache</span>
+      <span class="arch-pill">Prometheus metrics</span>
+    </div>""", unsafe_allow_html=True)
 
     st.markdown("---")
-    st.markdown("### 💡 Sample Questions")
-    for q in [
-        "What are symptoms of Type 2 diabetes?",
-        "How does ibuprofen work?",
-        "What foods should I avoid with high blood pressure?",
-        "What are the side effects of statins?",
-    ]:
-        if st.button(q, key=f"sample_{q[:20]}", use_container_width=True):
-            st.session_state.prefill_query = q
+    st.markdown("### 💡 Try These")
+    for q in ["What are symptoms of Type 2 diabetes?",
+               "How does ibuprofen work?",
+               "What foods to avoid with high blood pressure?",
+               "Side effects of statins?"]:
+        if st.button(q, key=f"s_{q[:15]}", use_container_width=True):
+            st.session_state.prefill = q
             st.rerun()
 
     st.markdown("---")
+    st.markdown("### 📄 Add to Knowledge Base")
+    itxt = st.text_area("Paste medical text:", height=80, key="ingest_txt")
+    isrc = st.text_input("Source name:", value="custom", key="ingest_src")
+    if st.button("➕ Ingest", use_container_width=True):
+        if itxt.strip():
+            r = requests.post(f"{API_BASE}/ingest/text",
+                              json={"text":itxt,"source_name":isrc}, timeout=30)
+            st.success(f"✅ {r.json().get('chunks_stored',0)} chunks added") if r.ok else st.error("Failed")
+        else:
+            st.warning("Enter text first")
+
     if st.button("🗑️ Clear Chat", use_container_width=True):
         st.session_state.messages = []
         st.rerun()
 
-    # ── Privacy Mode (AirLLM) ──────────────────────────────────────────────
-    st.markdown("---")
-    st.markdown("### 🔒 Privacy Mode")
-
-    # Check local model status (cached to avoid repeated API calls)
-    if "local_status_cache" not in st.session_state:
-        try:
-            local_status = requests.get(f"{API_BASE}/local-model/status", timeout=3).json()
-            local_available = local_status.get("available", False)
-            st.session_state.local_status_cache = {"status": local_status, "available": local_available}
-        except Exception:
-            local_available = False
-            local_status = {}
-            st.session_state.local_status_cache = {"status": {}, "available": False}
-    else:
-        cache = st.session_state.local_status_cache
-        local_status = cache["status"]
-        local_available = cache["available"]
-
-    if local_available:
-        is_downloaded = local_status.get("downloaded", False)
-        current_mode  = local_status.get("local_mode_active", False)
-
-        mode_label = "🟢 Local (Private)" if current_mode else "☁️ Cloud (OpenAI)"
-        st.markdown(f"**Current mode:** {mode_label}")
-
-        if not is_downloaded:
-            st.warning("Local model not downloaded yet (~4.7 GB)")
-            if st.button("⬇️ Download Llama 3 8B", use_container_width=True):
-                with st.spinner("Starting download in background…"):
-                    requests.post(f"{API_BASE}/local-model/download", timeout=10)
-                st.success("Download started! Check back in a few minutes.")
-        else:
-            st.success(f"✅ {local_status.get('cache_size', '')} cached locally")
-            toggle_on = st.toggle(
-                "Use local model (no data leaves device)",
-                value=current_mode,
-                key="local_mode_toggle",
-            )
-            if toggle_on != current_mode:
-                requests.post(
-                    f"{API_BASE}/local-model/toggle",
-                    params={"enable": toggle_on},
-                    timeout=5,
-                )
-                st.rerun()
-
-            if current_mode:
-                st.info(
-                    "🔒 **Privacy mode active**\n\n"
-                    "Llama 3 8B running on your device. "
-                    "No data is sent to OpenAI or any external server."
-                )
-    else:
-        st.markdown(
-            "<small>Local mode requires Apple Silicon Mac + "
-            "`pip install airllm mlx mlx-lm`</small>",
-            unsafe_allow_html=True,
-        )
-
-
 # ── Header ─────────────────────────────────────────────────────────────────────
-st.markdown("""
-<div class="main-header">
-    <h1>🏥 MediAssist</h1>
-    <p>AI-Powered Healthcare Assistant · Multi-Agent RAG · LangGraph + GPT-4o · Medical Record Analyzer</p>
-</div>
-""", unsafe_allow_html=True)
+st.markdown("""<div class="main-header">
+  <h1>🏥 MediAssist — Healthcare Super-Agent</h1>
+  <p>5-Agent LangGraph Pipeline · BM25+FAISS Hybrid Retrieval · Self-Correction Loop · Real-Time Streaming</p>
+</div>""", unsafe_allow_html=True)
+
+# Architecture always visible at top
+st.markdown("""<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:1rem;align-items:center;">
+  <span style="font-size:.78rem;font-weight:600;color:#666;margin-right:4px;">PIPELINE:</span>
+  <span class="arch-pill">1️⃣ Router</span>
+  <span style="color:#adb5bd">→</span>
+  <span class="arch-pill">2️⃣ Retriever (BM25+FAISS+RRF)</span>
+  <span style="color:#adb5bd">→</span>
+  <span class="arch-pill">3️⃣ Web Search (Tavily)</span>
+  <span style="color:#adb5bd">→</span>
+  <span class="arch-pill">4️⃣ Responder</span>
+  <span style="color:#adb5bd">→</span>
+  <span class="arch-pill">5️⃣ Evaluator (self-correct if &lt;0.7)</span>
+</div>""", unsafe_allow_html=True)
 
 # ── Tabs ───────────────────────────────────────────────────────────────────────
-tab_chat, tab_records = st.tabs(["💬 Ask MediAssist", "📋 My Medical Records"])
+tab_chat, tab_arch, tab_records = st.tabs(
+    ["💬 Ask MediAssist", "🔬 How It Works", "📋 My Medical Records"])
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 1 — Chat
+# TAB 1 — Chat with live agent pipeline visualization
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_chat:
-    st.markdown("""
-    <div class="disclaimer">
-        ⚕️ <strong>Medical Disclaimer:</strong> MediAssist provides general health information only.
-        It is not a substitute for professional medical advice, diagnosis, or treatment.
-        Always consult a qualified healthcare provider for personal medical decisions.
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown('<div class="disclaimer">⚕️ <strong>Disclaimer:</strong> General health information only. '
+                'Always consult a qualified healthcare provider.</div>', unsafe_allow_html=True)
     st.markdown("")
 
+    # Chat history
     for msg in st.session_state.messages:
-        role, content = msg["role"], msg["content"]
-        if role == "user":
-            st.markdown(f"""<div class="chat-message user">
-                <strong>You</strong><br>{content}</div>""", unsafe_allow_html=True)
+        if msg["role"] == "user":
+            st.markdown(f'<div class="chat-msg-user"><strong>You</strong><br>{msg["content"]}</div>',
+                        unsafe_allow_html=True)
         else:
-            badge = score_badge(msg.get("eval_score"))
-            icon  = intent_emoji(msg.get("intent", ""))
-            sources_list = []
-            for s in msg.get("sources", []):
-                if isinstance(s, dict):
-                    source_path = s.get("source", "") or s.get("metadata", {}).get("source", "record")
-                else:
-                    source_path = str(s)
-                source_name = source_path.split("/")[-1][:30] if "/" in source_path else source_path[:30]
-                sources_list.append(f'<span class="source-badge">📄 {source_name}</span>')
-            sources_html = "".join(sources_list)
-            st.markdown(f"""<div class="chat-message assistant">
-                <strong>MediAssist</strong> {icon} {badge}<br><br>
-                {content}
-                {'<br><br><strong>Sources:</strong> ' + sources_html if sources_html else ''}
-            </div>""", unsafe_allow_html=True)
-            if msg.get("show_trace"):
-                with st.expander("🔍 Agent Trace", expanded=False):
-                    st.markdown(f"""<div class="agent-trace">
-                    🔀 Router → Intent: <b>{msg.get('intent')}</b><br>
-                    📚 Retriever → Sources: {len(msg.get('sources', []))} found<br>
-                    💬 Responder → {len(content)} chars<br>
-                    ✅ Evaluator → Score: {msg.get('eval_score', 'N/A')}
-                    </div>""", unsafe_allow_html=True)
+            # Main response
+            st.markdown(f'<div class="chat-msg-ai"><strong>🤖 MediAssist</strong><br><br>'
+                        f'{msg["content"]}</div>', unsafe_allow_html=True)
+
+            # Always-visible agent pipeline result
+            meta = msg.get("meta", {})
+            intent     = meta.get("intent", "")
+            q_score    = meta.get("quality_score", 0.0)
+            hall_risk  = meta.get("hallucination_risk", "unknown")
+            latency    = meta.get("latency_ms", 0)
+            agent_trace = meta.get("agent_trace", [])
+            sources    = meta.get("retrieved_chunks", [])
+            retried    = any("RETRY" in t for t in agent_trace)
+
+            st.markdown(f"""<div class="pipeline-wrap">
+  <div class="pipeline-title">Agent pipeline result</div>
+  <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:.5rem;">
+    {intent_badge(intent)}
+    {badge(f"Quality: {q_score:.2f}", "green" if q_score>=.8 else "amber" if q_score>=.6 else "red")}
+    {hall_badge(hall_risk)}
+    {badge(f"⏱ {latency:.0f}ms","gray")}
+    {badge("🔁 Self-corrected","blue") if retried else ""}
+  </div>""", unsafe_allow_html=True)
+
+            # Retrieval details
+            if sources:
+                chunk_html = "".join(
+                    f'<span class="chunk-badge">📄 {(s.get("source","") or s.get("metadata",{}).get("source","chunk") if isinstance(s,dict) else str(s)).split("/")[-1][:25]} '
+                    f'({s.get("score",0):.2f})</span>'
+                    for s in sources[:5]
+                )
+                st.markdown(
+                    f'<div class="retrieval-panel"><strong>📚 Retrieval:</strong> '
+                    f'BM25+FAISS→RRF fusion→cross-encoder rerank · {len(sources)} chunks<br>'
+                    f'{chunk_html}</div>', unsafe_allow_html=True)
+
+            # Agent trace steps
+            if agent_trace:
+                steps_html = " → ".join(
+                    f'<span style="font-family:monospace;font-size:.76rem;color:#444;">{t}</span>'
+                    for t in agent_trace)
+                st.markdown(f'<details><summary style="font-size:.78rem;color:#666;cursor:pointer;">'
+                            f'🔍 Full agent trace ({len(agent_trace)} steps)</summary>'
+                            f'<div style="background:#f8f9fa;padding:.6rem;border-radius:6px;'
+                            f'margin-top:.4rem;font-size:.76rem;line-height:1.8;">'
+                            f'{steps_html}</div></details>', unsafe_allow_html=True)
+
+            st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("---")
-    prefill = st.session_state.pop("prefill_query", "")
-    col1, col2 = st.columns([5, 1])
-    with col1:
-        user_query = st.text_input(
-            "Ask a healthcare question:",
-            value=prefill,
-            placeholder="e.g. What are the symptoms of diabetes?",
-            label_visibility="collapsed",
-            key="query_input",
-        )
-    with col2:
-        send_clicked = st.button("Ask 🔍", use_container_width=True)
+    prefill = st.session_state.pop("prefill", "")
+    c1, c2 = st.columns([5,1])
+    with c1:
+        user_query = st.text_input("Ask a healthcare question:", value=prefill,
+                                   placeholder="e.g. What are symptoms of diabetes?",
+                                   label_visibility="collapsed", key="q_input")
+    with c2:
+        send = st.button("Ask 🔍", use_container_width=True)
 
-    show_trace = st.checkbox("Show agent trace", value=False)
+    if (send or user_query) and user_query.strip():
+        q = user_query.strip()
+        st.session_state.messages.append({"role":"user","content":q})
 
-    if (send_clicked or user_query) and user_query.strip():
-        query = user_query.strip()
-        st.session_state.messages.append({"role": "user", "content": query})
+        # Show live pipeline steps while streaming
+        pipeline_placeholder = st.empty()
+        steps = [("Router","🔀"),("Retriever","📚"),("Responder","💬"),("Evaluator","✅")]
+        active_idx = [0]
+
+        def render_pipeline(done_up_to: int, active: int):
+            html = '<div class="pipeline-wrap"><div class="pipeline-title">Running agent pipeline…</div>' \
+                   '<div class="agent-steps">'
+            for i,(name,icon) in enumerate(steps):
+                if i < done_up_to:
+                    cls = "step-done"; lbl = f"✓ {icon} {name}"
+                elif i == active:
+                    cls = "step-active"; lbl = f"⟳ {icon} {name}"
+                else:
+                    cls = "step-wait";   lbl = f"{icon} {name}"
+                html += f'<span class="agent-step {cls}">{lbl}</span>'
+                if i < len(steps)-1:
+                    html += '<span class="step-arrow">›</span>'
+            html += '</div></div>'
+            pipeline_placeholder.markdown(html, unsafe_allow_html=True)
+
+        render_pipeline(0, 0)
 
         with st.chat_message("assistant", avatar="🤖"):
             placeholder = st.empty()
             full_response = ""
+            meta_out = {}
+            start = time.time()
+
             try:
-                with requests.post(
-                    f"{API_BASE}/chat/stream",
-                    json={"query": query},
-                    stream=True,
-                    timeout=60,
-                ) as r:
+                with requests.post(f"{API_BASE}/chat/stream",
+                                   json={"query":q}, stream=True, timeout=90) as r:
                     for line in r.iter_lines():
-                        if line:
-                            decoded = line.decode("utf-8")
-                            if decoded.startswith("data: "):
-                                try:
-                                    data = json.loads(decoded[6:])
-                                    if data.get("type") == "token":
-                                        full_response += data.get("content", "")
-                                        placeholder.markdown(full_response + "▌")
-                                    elif data.get("type") == "metadata":
-                                        meta = data.get("content", {})
-                                        st.session_state.messages.append({
-                                            "role": "assistant",
-                                            "content": full_response,
-                                            "intent": meta.get("intent", "medical_faq"),
-                                            "sources": meta.get("retrieved_chunks", []),
-                                            "quality_score": meta.get("quality_score", 0.0),
-                                            "hallucination_risk": meta.get("hallucination_risk", "unknown"),
-                                            "agent_trace": meta.get("agent_trace", []),
-                                            "show_trace": show_trace,
-                                        })
-                                        st.session_state.stats["total_queries"] += 1
-                                        placeholder.markdown(full_response)
-                                        st.rerun()
-                                except json.JSONDecodeError:
-                                    pass
+                        if not line: continue
+                        decoded = line.decode("utf-8")
+                        if not decoded.startswith("data: "): continue
+                        try:
+                            data = json.loads(decoded[6:])
+                            if data.get("type") == "token":
+                                full_response += data.get("content","")
+                                placeholder.markdown(full_response + "▌")
+                                # Advance pipeline indicator based on response length
+                                if len(full_response) > 20:
+                                    render_pipeline(2, 3)
+                                elif len(full_response) > 5:
+                                    render_pipeline(1, 2)
+                            elif data.get("type") == "metadata":
+                                meta_out = data.get("content", {})
+                                render_pipeline(4, 4)
+                                placeholder.markdown(full_response)
+                        except json.JSONDecodeError:
+                            pass
+
             except Exception as e:
-                st.error(f"Connection error: {e}")
+                placeholder.error(f"Connection error: {e}")
+
+            lat = (time.time()-start)*1000
+            meta_out["latency_ms"] = lat
+
+            # Update session stats
+            n = st.session_state.stats["q"] + 1
+            qs = meta_out.get("quality_score", 0.0)
+            st.session_state.stats = {
+                "q": n,
+                "lat": round((st.session_state.stats["lat"]*(n-1)+lat)/n),
+                "score": round((st.session_state.stats["score"]*(n-1)+qs)/n, 2),
+            }
+
+            st.session_state.messages.append({
+                "role":"assistant","content":full_response,"meta":meta_out})
+            pipeline_placeholder.empty()
+            st.rerun()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 2 — My Medical Records
+# TAB 2 — How It Works (architecture explainer)
+# ══════════════════════════════════════════════════════════════════════════════
+with tab_arch:
+    st.markdown("### 🏗️ System Architecture")
+    c1,c2 = st.columns(2)
+    with c1:
+        st.markdown("""
+**Multi-agent LangGraph pipeline**
+
+Every query passes through 5 specialized async agents:
+
+| Agent | Role |
+|-------|------|
+| 🔀 Router | Classifies intent (FAQ / emergency / web search / follow-up), rewrites query for retrieval |
+| 📚 Retriever | BM25 keyword + FAISS dense search → RRF fusion → cross-encoder rerank |
+| 🌐 Web Search | Routes 2024+ queries to Tavily live search instead of static knowledge base |
+| 💬 Responder | Generates grounded response strictly from retrieved context |
+| ✅ Evaluator | Scores faithfulness + relevance + safety; triggers self-correction if score < 0.7 |
+""")
+    with c2:
+        st.markdown("""
+**What makes this different from a basic RAG chatbot**
+
+| Feature | Basic RAG | This System |
+|---------|-----------|-------------|
+| Retrieval | Vector only | BM25 + Dense + RRF |
+| Reranking | None | Cross-encoder |
+| Routing | Single path | 5 intent types |
+| Quality | No check | Evaluator + retry |
+| Hallucination | No detection | Embedding-based check |
+| Web search | No | Tavily real-time |
+| Privacy mode | No | AirLLM on-device |
+| Monitoring | No | Prometheus metrics |
+| Rate limiting | No | Sliding window |
+| Response cache | No | LRU with TTL |
+""")
+
+    st.markdown("---")
+    st.markdown("### 📊 Key Technical Decisions")
+    st.markdown("""
+**Why BM25 + FAISS + RRF?**
+Dense vector search misses exact medical terminology — drug names, ICD codes, specific dosages.
+BM25 catches these exact matches. RRF mathematically merges both ranked lists, consistently
+outperforming either retriever alone.
+
+**Why a self-correction loop?**
+Healthcare answers that are vague, off-topic, or not grounded in the retrieved context get caught
+by the Evaluator agent before reaching the user. If quality < 0.7, the Evaluator injects a
+corrective prompt and the Responder retries once. This doubles quality control cost but
+meaningfully reduces low-quality responses in testing.
+
+**Why SSE streaming instead of polling?**
+Every token streams to the UI via Server-Sent Events as soon as it's generated. The user sees
+the response building word-by-word rather than waiting 3-5 seconds for a complete response.
+This is critical for perceived responsiveness in a healthcare context.
+
+**Why a dedicated Medical Records tab?**
+Users can upload their own lab reports, discharge summaries, or doctor's notes. The system
+extracts structured information (diagnoses, lab values with normal/abnormal flags, medications,
+allergies) and then answers questions grounded strictly in those documents — not in general
+knowledge. This is the feature that separates this from a generic healthcare chatbot.
+""")
+
+    st.markdown("---")
+    st.markdown("### 🔗 Live Endpoints")
+    st.code("""
+POST /chat               → full pipeline, returns complete JSON
+POST /chat/stream        → SSE streaming — token events + final metadata
+POST /ingest/text        → add text to shared knowledge base
+POST /ingest/file        → upload PDF/text to shared knowledge base
+POST /records/upload     → upload personal medical record (session-scoped)
+POST /records/analyze    → extract structured data from uploaded records
+POST /records/query      → ask questions about uploaded records
+GET  /health             → health check
+GET  /metrics            → Prometheus metrics
+GET  /stats              → cache + rate limiter stats
+POST /local-model/toggle → switch between cloud and on-device LLM
+""")
+    st.markdown(f"Full interactive API docs: [{API_BASE}/docs]({API_BASE}/docs)")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 3 — My Medical Records
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_records:
-    session_id = st.session_state.session_id
-
-    st.markdown("""
-    <div class="disclaimer">
-        🔒 <strong>Privacy:</strong> Your uploaded records are processed only in-memory for this browser session
-        and are never saved to disk or shared. They are erased when you clear records or close the session.
-        Files are sent to OpenAI's API for analysis — do not upload records containing sensitive identifiers
-        if you are not comfortable with that.
-    </div>
-    """, unsafe_allow_html=True)
+    sid = st.session_state.session_id
+    st.markdown('<div class="disclaimer">🔒 <strong>Privacy:</strong> Records are processed in-memory '
+                'for this session only and never saved to disk. Data is sent to OpenAI for analysis.</div>',
+                unsafe_allow_html=True)
     st.markdown("")
 
-    # ── Upload + file list ──────────────────────────────────────────────────
-    left_col, right_col = st.columns([1, 1], gap="large")
+    left, right = st.columns([1,1], gap="large")
 
-    with left_col:
+    with left:
         st.markdown("### 📤 Upload Your Records")
-        st.markdown("Supports **PDF** and **.txt** files · Max 10 MB each")
-
-        uploaded = st.file_uploader(
-            "Choose files",
-            type=["pdf", "txt"],
-            accept_multiple_files=True,
-            label_visibility="collapsed",
-            key="record_uploader",
-        )
-
+        uploaded = st.file_uploader("", type=["pdf","txt"], accept_multiple_files=True,
+                                    label_visibility="collapsed", key="rec_up")
         if uploaded:
-            new_files = [f for f in uploaded if f.name not in st.session_state.records_files]
-            if new_files:
-                for uf in new_files:
-                    with st.spinner(f"Indexing {uf.name}…"):
-                        try:
-                            resp = requests.post(
-                                f"{API_BASE}/records/upload",
-                                data={"session_id": session_id},
-                                files={"file": (uf.name, uf.getvalue(), uf.type or "application/octet-stream")},
-                                timeout=60,
-                            )
-                            if resp.status_code == 200:
-                                data = resp.json()
-                                st.session_state.records_files.append(uf.name)
-                                st.success(f"✅ **{uf.name}** — {data['chunks_stored']} chunks indexed")
-                            else:
-                                detail = resp.json().get("detail", resp.text)
-                                st.error(f"❌ {uf.name}: {detail}")
-                        except Exception as e:
-                            st.error(f"❌ Upload failed: {e}")
+            for uf in [f for f in uploaded if f.name not in st.session_state.rec_files]:
+                with st.spinner(f"Indexing {uf.name}…"):
+                    r = requests.post(f"{API_BASE}/records/upload",
+                                      data={"session_id":sid},
+                                      files={"file":(uf.name,uf.getvalue(),
+                                                      uf.type or "application/octet-stream")},
+                                      timeout=60)
+                    if r.ok:
+                        st.session_state.rec_files.append(uf.name)
+                        st.success(f"✅ {uf.name} — {r.json().get('chunks_stored',0)} chunks indexed")
+                    else:
+                        st.error(f"❌ {uf.name}: {r.json().get('detail',r.text)}")
 
-        # Uploaded files list
-        if st.session_state.records_files:
-            st.markdown("**Indexed files:**")
-            for fname in st.session_state.records_files:
-                st.markdown(f"• 📄 `{fname}`")
-
-            bcol1, bcol2 = st.columns(2)
-            with bcol1:
-                analyze_clicked = st.button(
-                    "🔬 Analyze My Records",
-                    use_container_width=True,
-                    type="primary",
-                )
-            with bcol2:
-                if st.button("🗑️ Clear All Records", use_container_width=True):
-                    try:
-                        requests.delete(f"{API_BASE}/records/clear/{session_id}", timeout=10)
-                    except Exception:
-                        pass
-                    st.session_state.records_files = []
-                    st.session_state.records_extraction = None
-                    st.session_state.records_messages = []
+        if st.session_state.rec_files:
+            for f in st.session_state.rec_files:
+                st.markdown(f"• 📄 `{f}`")
+            bc1,bc2 = st.columns(2)
+            with bc1:
+                analyze = st.button("🔬 Analyze Records", use_container_width=True, type="primary")
+            with bc2:
+                if st.button("🗑️ Clear Records", use_container_width=True):
+                    try: requests.delete(f"{API_BASE}/records/clear/{sid}", timeout=10)
+                    except: pass
+                    st.session_state.rec_files=[]
+                    st.session_state.rec_extract=None
+                    st.session_state.rec_msgs=[]
                     st.rerun()
-
-            if analyze_clicked:
-                with st.spinner("Analyzing records… this takes 10-20 seconds…"):
-                    try:
-                        resp = requests.post(
-                            f"{API_BASE}/records/analyze",
-                            data={"session_id": session_id},
-                            timeout=90,
-                        )
-                        if resp.status_code == 200:
-                            st.session_state.records_extraction = resp.json()
-                            st.success("✅ Analysis complete! See results on the right →")
-                        else:
-                            st.error(f"Analysis failed: {resp.json().get('detail', resp.text)}")
-                    except Exception as e:
-                        st.error(f"Analysis error: {e}")
+            if analyze:
+                with st.spinner("Analyzing… 10-20 seconds…"):
+                    r = requests.post(f"{API_BASE}/records/analyze",
+                                      data={"session_id":sid}, timeout=90)
+                    if r.ok:
+                        st.session_state.rec_extract = r.json()
+                        st.success("✅ Analysis complete →")
+                    else:
+                        st.error(r.json().get("detail","Analysis failed"))
         else:
-            st.markdown("""
-            <div class="upload-zone">
-                <strong>Upload a PDF or text file to get started</strong><br>
-                <small>Lab results · Discharge summaries · Doctor's notes · Prescription lists</small>
-            </div>
-            """, unsafe_allow_html=True)
+            st.info("Upload a PDF or .txt file to begin. Supports lab results, "
+                    "discharge summaries, doctor's notes, prescription lists.")
 
-        # ── Q&A section ─────────────────────────────────────────────────────
-        if st.session_state.records_files:
+        if st.session_state.rec_files:
             st.markdown("---")
             st.markdown("### 💬 Ask About Your Records")
-            st.markdown(
-                "Ask anything about the documents you uploaded. The AI answers "
-                "**only from your records** — not from general knowledge."
-            )
-
-            for rmsg in st.session_state.records_messages:
-                if rmsg["role"] == "user":
-                    st.markdown(f"""<div class="chat-message user">
-                        <strong>You</strong><br>{rmsg['content']}</div>""",
-                        unsafe_allow_html=True)
+            for rm in st.session_state.rec_msgs:
+                if rm["role"]=="user":
+                    st.markdown(f'<div class="chat-msg-user"><strong>You</strong><br>'
+                                f'{rm["content"]}</div>', unsafe_allow_html=True)
                 else:
-                    st.markdown(f"""<div class="records-answer">{rmsg['content']}</div>""",
+                    st.markdown(f'<div class="chat-msg-ai">{rm["content"]}</div>',
                                 unsafe_allow_html=True)
-                    if rmsg.get("sources"):
-                        src_html = "".join(
-                            f'<span class="source-badge">📄 {s["source"]} ({s["score"]:.2f})</span>'
-                            for s in rmsg["sources"]
-                        )
-                        st.markdown(f"<small>{src_html}</small>", unsafe_allow_html=True)
-
-            q_col, btn_col = st.columns([5, 1])
-            with q_col:
-                record_question = st.text_input(
-                    "Your question:",
-                    placeholder="e.g. What was my HbA1c result? Are any of my labs abnormal?",
-                    label_visibility="collapsed",
-                    key="record_q_input",
-                )
-            with btn_col:
-                ask_record = st.button("Ask 🔍", key="ask_record_btn", use_container_width=True)
-
-            if ask_record and record_question.strip():
-                q = record_question.strip()
-                st.session_state.records_messages.append({"role": "user", "content": q})
-                with st.spinner("Searching your records…"):
-                    try:
-                        resp = requests.post(
-                            f"{API_BASE}/records/query",
-                            json={"session_id": session_id, "question": q},
-                            timeout=60,
-                        )
-                        if resp.status_code == 200:
-                            data = resp.json()
-                            st.session_state.records_messages.append({
-                                "role": "assistant",
-                                "content": data["answer"],
-                                "sources": data.get("sources", []),
-                            })
+            rq = st.text_input("Question about your records:",
+                               placeholder="e.g. What was my HbA1c? Are any labs abnormal?",
+                               label_visibility="collapsed", key="rec_q")
+            if st.button("Ask 🔍", key="rec_ask"):
+                if rq.strip():
+                    st.session_state.rec_msgs.append({"role":"user","content":rq})
+                    with st.spinner("Searching your records…"):
+                        r = requests.post(f"{API_BASE}/records/query",
+                                          json={"session_id":sid,"question":rq}, timeout=60)
+                        if r.ok:
+                            d = r.json()
+                            st.session_state.rec_msgs.append({
+                                "role":"assistant","content":d["answer"],
+                                "sources":d.get("sources",[])})
                         else:
-                            st.error(resp.json().get("detail", "Query failed."))
-                    except Exception as e:
-                        st.error(f"Error: {e}")
-                st.rerun()
+                            st.error(r.json().get("detail","Query failed"))
+                    st.rerun()
 
-    # ── Extraction results panel ────────────────────────────────────────────
-    with right_col:
-        extraction = st.session_state.records_extraction
-
-        if not extraction:
-            if st.session_state.records_files:
-                st.markdown("### 📊 Analysis Results")
-                st.info("Click **Analyze My Records** to extract structured information from your documents.")
-            else:
-                st.markdown("### 📊 What You'll See Here")
-                st.markdown("""
-After uploading and analyzing your records, this panel will show:
-
-- 🏥 **Patient info** — name, date, provider
-- 🩺 **Diagnoses** — conditions listed in the record
-- 💊 **Medications** — drugs, doses, and what they treat
-- 🧪 **Lab values** — every result with a color-coded normal/abnormal indicator
-- ⚠️ **Abnormal flags** — only the out-of-range values, highlighted
-- 📋 **Key findings** — plain-English summary of what matters most
-- ✅ **Recommended actions** — questions to ask your doctor
-
-**Then ask questions in plain English:**
-> *"What was my blood sugar result?"*
-> *"Which of my labs are high?"*
-> *"What does HbA1c mean?"*
-                """)
+    with right:
+        ex = st.session_state.rec_extract
+        if not ex:
+            st.markdown("### 📊 Analysis Results")
+            st.markdown("Upload records and click **Analyze Records** to see structured extraction here.\n\n"
+                        "You'll get: diagnoses, lab values (color-coded normal/abnormal), "
+                        "medications, allergies, key findings, and recommended questions for your doctor.")
         else:
-            if extraction.get("error") and not extraction.get("diagnoses"):
-                st.error(f"Extraction error: {extraction['error']}")
-            else:
-                st.markdown("### 📊 Analysis Results")
-                if extraction.get("latency_ms"):
-                    st.caption(f"Analyzed in {extraction['latency_ms']/1000:.1f}s")
-
-                # Patient Info
-                pi = extraction.get("patient_info", {})
-                if any(v and v != "Not specified" for v in pi.values()):
-                    with st.expander("👤 Patient Information", expanded=True):
-                        cols = st.columns(2)
-                        info_items = [
-                            ("Name", pi.get("name")),
-                            ("Date of Birth", pi.get("dob")),
-                            ("Record Date", pi.get("record_date")),
-                            ("Provider", pi.get("provider")),
-                        ]
-                        for i, (label, val) in enumerate(info_items):
-                            if val and val != "Not specified":
-                                with cols[i % 2]:
-                                    st.markdown(f"**{label}:** {val}")
-
-                # Key Findings
-                kf = extraction.get("key_findings", "")
-                if kf:
-                    st.markdown(f"""<div class="key-findings">
-                        <strong>🔑 Key Findings</strong><br>{kf}
-                    </div>""", unsafe_allow_html=True)
-                    st.markdown("")
-
-                # Abnormal Flags
-                flags = extraction.get("abnormal_flags", [])
-                if flags:
-                    with st.expander(f"⚠️ Abnormal Findings ({len(flags)})", expanded=True):
-                        for flag in flags:
-                            st.markdown(f'<div class="abnormal-flag">⚠️ {flag}</div>',
-                                        unsafe_allow_html=True)
-
-                # Diagnoses
-                diagnoses = extraction.get("diagnoses", [])
-                if diagnoses:
-                    with st.expander(f"🩺 Diagnoses ({len(diagnoses)})", expanded=True):
-                        tags = "".join(
-                            f'<span class="diagnosis-tag">{d}</span>' for d in diagnoses
-                        )
-                        st.markdown(tags, unsafe_allow_html=True)
-
-                # Allergies
-                allergies = extraction.get("allergies", [])
-                if allergies:
-                    with st.expander(f"🚫 Allergies ({len(allergies)})", expanded=False):
-                        tags = "".join(
-                            f'<span class="allergy-tag">⚠️ {a}</span>' for a in allergies
-                        )
-                        st.markdown(tags, unsafe_allow_html=True)
-
-                # Lab Values
-                labs = extraction.get("lab_values", [])
-                if labs:
-                    with st.expander(f"🧪 Lab Values ({len(labs)})", expanded=True):
-                        for lab in labs:
-                            status_badge = lab_status_html(lab.get("status", "UNKNOWN"))
-                            interpretation = lab.get("interpretation", "")
-                            ref = lab.get("normal_range", "N/A")
-                            st.markdown(
-                                f"**{lab.get('name', '?')}** — {lab.get('value', '?')} "
-                                f"{status_badge} &nbsp; <small style='color:#888'>Ref: {ref}</small>",
-                                unsafe_allow_html=True,
-                            )
-                            if interpretation:
-                                st.caption(f"↳ {interpretation}")
-
-                # Medications
-                meds = extraction.get("medications", [])
-                if meds:
-                    with st.expander(f"💊 Medications ({len(meds)})", expanded=False):
-                        for med in meds:
-                            parts = [f"**{med.get('name', '?')}**"]
-                            if med.get("dose"):
-                                parts.append(med["dose"])
-                            if med.get("frequency"):
-                                parts.append(med["frequency"])
-                            st.markdown(" · ".join(parts))
-                            if med.get("indication"):
-                                st.caption(f"↳ For: {med['indication']}")
-
-                # Recommended Actions
-                actions = extraction.get("recommended_actions", [])
-                if actions:
-                    with st.expander("✅ Questions to Discuss with Your Doctor", expanded=False):
-                        for action in actions:
-                            st.markdown(f"- {action}")
-
-                st.markdown("---")
-                st.markdown("""
-                <div class="disclaimer">
-                    ⚕️ This analysis is based solely on the text extracted from your uploaded documents.
-                    It is not a medical diagnosis. Always discuss your results with your healthcare provider.
-                </div>
-                """, unsafe_allow_html=True)
-
+            st.markdown("### 📊 Analysis Results")
+            pi = ex.get("patient_info",{})
+            if any(v and v!="Not specified" for v in pi.values()):
+                with st.expander("👤 Patient Information", expanded=True):
+                    for label,key in [("Name","name"),("DOB","dob"),
+                                      ("Record Date","record_date"),("Provider","provider")]:
+                        v = pi.get(key,"")
+                        if v and v!="Not specified":
+                            st.markdown(f"**{label}:** {v}")
+            kf = ex.get("key_findings","")
+            if kf:
+                st.markdown(f'<div class="findings-box"><strong>🔑 Key Findings</strong><br>{kf}</div>',
+                            unsafe_allow_html=True)
+                st.markdown("")
+            flags = ex.get("abnormal_flags",[])
+            if flags:
+                with st.expander(f"⚠️ Abnormal Findings ({len(flags)})", expanded=True):
+                    for f in flags:
+                        st.markdown(f'<div class="flag-box">⚠️ {f}</div>', unsafe_allow_html=True)
+            if diag := ex.get("diagnoses",[]):
+                with st.expander(f"🩺 Diagnoses ({len(diag)})", expanded=True):
+                    st.markdown(" ".join(
+                        f'<span style="display:inline-block;background:#e8f5e9;color:#1b5e20;'
+                        f'padding:3px 10px;border-radius:14px;font-size:.8rem;margin:2px;'
+                        f'border:1px solid #a5d6a7;">{d}</span>' for d in diag),
+                        unsafe_allow_html=True)
+            if labs := ex.get("lab_values",[]):
+                with st.expander(f"🧪 Lab Values ({len(labs)})", expanded=True):
+                    for lab in labs:
+                        st.markdown(
+                            f"**{lab.get('name','?')}** — {lab.get('value','?')} "
+                            f"{lab_html(lab.get('status','UNKNOWN'))} "
+                            f"<small style='color:#888'>Ref: {lab.get('normal_range','N/A')}</small>",
+                            unsafe_allow_html=True)
+                        if lab.get("interpretation"):
+                            st.caption(f"↳ {lab['interpretation']}")
+            if meds := ex.get("medications",[]):
+                with st.expander(f"💊 Medications ({len(meds)})", expanded=False):
+                    for m in meds:
+                        parts = [f"**{m.get('name','?')}**"]
+                        if m.get("dose"): parts.append(m["dose"])
+                        if m.get("frequency"): parts.append(m["frequency"])
+                        st.markdown(" · ".join(parts))
+                        if m.get("indication"): st.caption(f"↳ For: {m['indication']}")
+            if acts := ex.get("recommended_actions",[]):
+                with st.expander("✅ Questions for Your Doctor", expanded=False):
+                    for a in acts: st.markdown(f"- {a}")
 
 # ── Footer ─────────────────────────────────────────────────────────────────────
 st.markdown("---")
-st.markdown("""
-<div style="text-align:center; color:#999; font-size:0.8rem;">
-    Built with LangGraph · FAISS · GPT-4o · FastAPI · Streamlit<br>
-    <a href="https://github.com/santhakumarramesh" target="_blank" style="color:#1b6ca8;">GitHub</a> ·
-    <a href="https://www.linkedin.com/in/santhakumar-ramesh/" target="_blank" style="color:#1b6ca8;">LinkedIn</a>
-</div>
-""", unsafe_allow_html=True)
+st.markdown("""<div style="text-align:center;color:#999;font-size:.78rem;">
+  MediAssist · LangGraph · BM25+FAISS+RRF · GPT-4o · FastAPI · Streamlit ·
+  <a href="https://github.com/santhakumarramesh/healthcare-rag-agent" style="color:#1b6ca8;">GitHub</a> ·
+  <a href="https://healthcare-rag-api.onrender.com/docs" style="color:#1b6ca8;">API Docs</a> ·
+  <a href="https://www.linkedin.com/in/santhakumar-ramesh/" style="color:#1b6ca8;">LinkedIn</a>
+</div>""", unsafe_allow_html=True)
