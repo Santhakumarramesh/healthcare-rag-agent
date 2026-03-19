@@ -216,15 +216,26 @@ Rules:
         )
 
 
-# Singleton instance
-structured_reasoning_agent: Optional[StructuredReasoningAgent] = None
+# Singleton instance (lazy-loaded)
+_structured_reasoning_agent: Optional[StructuredReasoningAgent] = None
 
 
 def get_structured_reasoning_agent(api_key: str, model: str = "gpt-4o-mini") -> StructuredReasoningAgent:
-    """Get or create structured reasoning agent singleton."""
-    global structured_reasoning_agent
-    if structured_reasoning_agent is None:
-        from models.llm_client import OpenAILLMClient
-        llm = OpenAILLMClient(api_key=api_key, model=model)
-        structured_reasoning_agent = StructuredReasoningAgent(llm_client=llm)
-    return structured_reasoning_agent
+    """
+    Get or create structured reasoning agent singleton.
+    
+    This is lazy-loaded to avoid startup delays.
+    """
+    global _structured_reasoning_agent
+    
+    if _structured_reasoning_agent is None:
+        try:
+            from models.llm_client import OpenAILLMClient
+            llm = OpenAILLMClient(api_key=api_key, model=model)
+            _structured_reasoning_agent = StructuredReasoningAgent(llm_client=llm)
+            logger.info("[StructuredReasoningAgent] Singleton created")
+        except Exception as e:
+            logger.error(f"[StructuredReasoningAgent] Failed to create: {e}")
+            raise
+    
+    return _structured_reasoning_agent
