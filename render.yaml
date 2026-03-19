@@ -38,7 +38,7 @@ services:
     region: oregon
     plan: free
     buildCommand: "pip install -r requirements-ui.txt"
-    startCommand: "bash start_healthcare.sh"
+    startCommand: "streamlit run streamlit_app/app_healthcare.py --server.port $PORT --server.headless true --server.enableCORS false --server.enableXsrfProtection false"
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.10"
