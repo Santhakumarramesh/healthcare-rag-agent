@@ -266,8 +266,15 @@ async def health_check():
         - model: configured OpenAI model name
         - vector_store: configured vector store type
     """
-    index_path = Path(config.FAISS_INDEX_PATH)
+    # Resolve to absolute path — prevents CWD-relative mismatches on Render
+    index_path = Path(config.FAISS_INDEX_PATH).resolve()
     vs_ready = (index_path / "index.faiss").exists()
+    # Fallback: also check relative path in case resolve differs
+    if not vs_ready:
+        index_path_rel = Path(config.FAISS_INDEX_PATH)
+        vs_ready = (index_path_rel / "index.faiss").exists()
+        if vs_ready:
+            index_path = index_path_rel
     index_size = 0
     if vs_ready:
         try:

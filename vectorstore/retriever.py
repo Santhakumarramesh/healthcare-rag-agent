@@ -131,7 +131,11 @@ class HybridRetriever:
             logger.error(f"Pinecone connection failed: {e}")
 
     def _load_index(self):
-        index_path = Path(config.FAISS_INDEX_PATH)
+        # Resolve absolute path to avoid CWD-relative mismatches
+        index_path = Path(config.FAISS_INDEX_PATH).resolve()
+        if not (index_path / "index.faiss").exists():
+            # Fallback to relative path
+            index_path = Path(config.FAISS_INDEX_PATH)
         faiss_file = index_path / "index.faiss"
         chunks_file = index_path / "chunks.pkl"
 

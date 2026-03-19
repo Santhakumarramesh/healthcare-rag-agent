@@ -5,7 +5,7 @@ services:
     env: python
     region: oregon
     plan: free
-    buildCommand: "pip install -r requirements.txt && python vectorstore/ingest.py"
+    buildCommand: "pip install -r requirements.txt && python vectorstore/ingest.py && echo 'BUILD_DONE' && ls -la vectorstore/faiss_index/"
     startCommand: "uvicorn api.main:app --host 0.0.0.0 --port $PORT"
     envVars:
       - key: PYTHON_VERSION

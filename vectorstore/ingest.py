@@ -64,7 +64,7 @@ class DocumentIngestionPipeline:
             chunk_overlap=64,
             separators=["\n\n", "\n", ". ", " ", ""],
         )
-        self.index_path = Path(config.FAISS_INDEX_PATH)
+        self.index_path = Path(config.FAISS_INDEX_PATH).resolve()
         self.index_path.mkdir(parents=True, exist_ok=True)
         logger.info(f"Embedding dim: {self.embedding_dim} | Index path: {self.index_path}")
 
@@ -231,7 +231,24 @@ class DocumentIngestionPipeline:
 
 
 if __name__ == "__main__":
+    import os
+    # Print working dir so Render build logs show exactly where we are
+    print(f"[ingest] CWD: {os.getcwd()}")
+    print(f"[ingest] FAISS_INDEX_PATH from config: {config.FAISS_INDEX_PATH}")
+
     pipeline = DocumentIngestionPipeline()
-    # No local knowledge base — rely on OpenAI's knowledge + user-uploaded documents only
     pipeline.run(extra_paths=[], force_rebuild=True)
-    logger.success(f"Ingestion complete! Index at: {pipeline.index_path}")
+
+    # Verify files were written
+    faiss_file  = pipeline.index_path / "index.faiss"
+    chunks_file = pipeline.index_path / "chunks.pkl"
+    if faiss_file.exists() and chunks_file.exists():
+        import faiss as _faiss, pickle as _pickle
+        idx = _faiss.read_index(str(faiss_file))
+        with open(chunks_file, "rb") as fh:
+            ch = _pickle.load(fh)
+        print(f"[ingest] ✅ Index verified: {idx.ntotal} vectors, {len(ch)} chunks")
+        print(f"[ingest] ✅ Absolute path: {faiss_file.resolve()}")
+    else:
+        print(f"[ingest] ❌ Index files NOT found at {pipeline.index_path.resolve()}")
+        raise RuntimeError("Ingest failed — index files missing after run()")
