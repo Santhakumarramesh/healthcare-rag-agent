@@ -30,15 +30,23 @@ def _llm(temperature: float = 0.0) -> ChatOpenAI:
 
 # ── Prompts ───────────────────────────────────────────────────────────────────
 
-EXTRACTION_SYSTEM_PROMPT = """You are a medical record analyst. Extract structured information from raw medical record text.
+EXTRACTION_SYSTEM_PROMPT = """You are an expert medical record analyst trained to extract structured data from ANY format of medical document, including:
+- Lab reports (blood tests, urinalysis, radiology, pathology)
+- Discharge summaries
+- Doctor's notes and prescriptions
+- Hospital records
+- Imaging reports (X-ray, CT, MRI, ultrasound)
+- Vaccination records
+
+You must be EXTREMELY CAREFUL to extract the ACTUAL patient information from the document, not placeholder or example data.
 
 Return ONLY valid JSON with this exact schema (no markdown fences, no extra text):
 {
   "patient_info": {
-    "name": "<full name or 'Not specified'>",
-    "dob": "<date of birth or 'Not specified'>",
-    "record_date": "<date of record or 'Not specified'>",
-    "provider": "<doctor or clinic name or 'Not specified'>"
+    "name": "<ACTUAL full name from document or 'Not specified'>",
+    "dob": "<ACTUAL date of birth or age or 'Not specified'>",
+    "record_date": "<ACTUAL date of this record or 'Not specified'>",
+    "provider": "<ACTUAL doctor/clinic/hospital name or 'Not specified'>"
   },
   "diagnoses": ["<diagnosis 1>", "<diagnosis 2>"],
   "medications": [
@@ -46,9 +54,9 @@ Return ONLY valid JSON with this exact schema (no markdown fences, no extra text
   ],
   "lab_values": [
     {
-      "name": "<test name>",
-      "value": "<result with unit>",
-      "normal_range": "<reference range or 'N/A'>",
+      "name": "<EXACT test name as written>",
+      "value": "<EXACT result with unit>",
+      "normal_range": "<reference range if provided, or 'N/A'>",
       "status": "<NORMAL|HIGH|LOW|CRITICAL|UNKNOWN>",
       "interpretation": "<one plain-English sentence explaining what this means>"
     }
@@ -59,12 +67,22 @@ Return ONLY valid JSON with this exact schema (no markdown fences, no extra text
   "recommended_actions": ["<action the patient should discuss with their doctor>"]
 }
 
-Rules:
-- Use [] for lists with no data; use "Not specified" for unknown strings.
-- For lab status: HIGH = above reference range, LOW = below, CRITICAL = dangerously out of range, NORMAL = within range.
-- Include ALL lab values, even normal ones.
-- Do NOT diagnose, prescribe, or speculate beyond what the record states.
-- Respond ONLY with the JSON object."""
+CRITICAL RULES:
+1. Extract the REAL patient name, date, and provider from the document - DO NOT use placeholder names like "John Smith" or "Jane Doe"
+2. If you see table data, parse it carefully - lab values are often in tables with columns like: Test Name | Result | Reference Range | Units
+3. For lab status: 
+   - HIGH = result above reference range upper limit
+   - LOW = result below reference range lower limit  
+   - CRITICAL = dangerously out of range (typically marked with flags like *, H, L, or CRITICAL)
+   - NORMAL = within reference range
+   - UNKNOWN = no reference range provided
+4. Include ALL lab values found, even normal ones
+5. Look for dates in various formats: DD/MM/YYYY, MM/DD/YYYY, DD-MMM-YYYY, etc.
+6. Look for patient identifiers: MRN, Patient ID, Registration Number
+7. Extract ALL medications mentioned, including dosage and frequency
+8. If the document is an imaging report (X-ray, CT, MRI), put findings in "diagnoses" and key observations in "key_findings"
+9. Do NOT diagnose, prescribe, or speculate beyond what the record explicitly states
+10. Respond ONLY with the JSON object - no explanations, no markdown fences"""
 
 
 RECORDS_QA_SYSTEM_PROMPT = """You are a Medical Records Assistant helping a patient understand their own uploaded health records.

@@ -80,13 +80,93 @@ class PersonalDocumentStore:
     # ── Public API ─────────────────────────────────────────────────────────────
 
     def add_pdf(self, session_id: str, pdf_bytes: bytes, filename: str) -> int:
-        """Extract text from a PDF, chunk it, embed it, store in the session."""
+        """
+        Extract text from a PDF using multiple strategies:
+        1. Try pypdf for text-based PDFs
+        2. Fall back to OCR for scanned/image-based PDFs
+        3. Use pdfplumber for better table extraction
+        """
+        import pdfplumber
         from pypdf import PdfReader
-        reader = PdfReader(io.BytesIO(pdf_bytes))
-        pages = [p.extract_text() for p in reader.pages if p.extract_text()]
-        if not pages:
-            raise ValueError(f"No extractable text found in '{filename}'.")
-        full_text = "\n\n".join(pages)
+        
+        full_text = ""
+        
+        # Strategy 1: Try pdfplumber first (better for tables and layouts)
+        try:
+            with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+                pages_text = []
+                for page in pdf.pages:
+                    # Extract text
+                    text = page.extract_text()
+                    
+                    # Extract tables separately
+                    tables = page.extract_tables()
+                    if tables:
+                        for table in tables:
+                            # Convert table to readable text format
+                            table_text = "\n".join([
+                                " | ".join([str(cell) if cell else "" for cell in row])
+                                for row in table if row
+                            ])
+                            text = (text or "") + "\n\nTable:\n" + table_text
+                    
+                    if text and text.strip():
+                        pages_text.append(text)
+                
+                if pages_text:
+                    full_text = "\n\n=== PAGE BREAK ===\n\n".join(pages_text)
+                    logger.info(f"[PersonalStore] Extracted {len(pages_text)} pages using pdfplumber")
+        except Exception as e:
+            logger.warning(f"[PersonalStore] pdfplumber failed: {e}, trying pypdf...")
+        
+        # Strategy 2: Fall back to pypdf if pdfplumber failed
+        if not full_text:
+            try:
+                reader = PdfReader(io.BytesIO(pdf_bytes))
+                pages = []
+                for p in reader.pages:
+                    text = p.extract_text()
+                    if text and text.strip():
+                        pages.append(text)
+                
+                if pages:
+                    full_text = "\n\n=== PAGE BREAK ===\n\n".join(pages)
+                    logger.info(f"[PersonalStore] Extracted {len(pages)} pages using pypdf")
+            except Exception as e:
+                logger.warning(f"[PersonalStore] pypdf failed: {e}")
+        
+        # Strategy 3: Try OCR for image-based PDFs (scanned documents) - OPTIONAL
+        if not full_text or len(full_text.strip()) < 100:
+            try:
+                import pytesseract
+                from pdf2image import convert_from_bytes
+                
+                logger.info("[PersonalStore] Attempting OCR extraction...")
+                images = convert_from_bytes(pdf_bytes, dpi=300, fmt='png')
+                ocr_pages = []
+                
+                for i, img in enumerate(images):
+                    # Use pytesseract for OCR
+                    text = pytesseract.image_to_string(img, lang='eng', config='--psm 6')
+                    if text and text.strip():
+                        ocr_pages.append(f"[Page {i+1} - OCR]\n{text}")
+                
+                if ocr_pages:
+                    full_text = "\n\n=== PAGE BREAK ===\n\n".join(ocr_pages)
+                    logger.info(f"[PersonalStore] Extracted {len(ocr_pages)} pages using OCR")
+            except ImportError as e:
+                logger.warning(f"[PersonalStore] OCR not available: {e}. Install tesseract-ocr for scanned PDF support.")
+            except Exception as e:
+                logger.warning(f"[PersonalStore] OCR extraction failed: {e}. Document may be image-based.")
+        
+        # Final check
+        if not full_text or len(full_text.strip()) < 50:
+            raise ValueError(
+                f"Could not extract meaningful text from '{filename}'. "
+                "The PDF may be encrypted, corrupted, or contain only images without OCR support."
+            )
+        
+        logger.info(f"[PersonalStore] Final extracted text length: {len(full_text)} chars")
         return self._add_text_internal(session_id, full_text, filename)
 
     def add_text(self, session_id: str, text: str, filename: str) -> int:
