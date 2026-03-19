@@ -196,7 +196,6 @@ class DocumentIngestionPipeline:
 
 if __name__ == "__main__":
     pipeline = DocumentIngestionPipeline()
-    kb_path = Path(__file__).parent.parent / "data" / "healthcare_knowledge_base.md"
-    extra = [str(kb_path)] if kb_path.exists() else []
-    pipeline.run(extra_paths=extra, force_rebuild=True)
+    # No local knowledge base — rely on OpenAI's knowledge + user-uploaded documents only
+    pipeline.run(extra_paths=[], force_rebuild=True)
     logger.success(f"Ingestion complete! Index at: {pipeline.index_path}")

@@ -38,16 +38,15 @@ async def lifespan(app: FastAPI):
 
     # Run ingest at startup if FAISS index doesn't exist yet.
     # This handles Render deployments where ingest is not run as a build step.
+    # No local knowledge base — system relies on OpenAI's knowledge + user-uploaded documents
     index_path = Path(config.FAISS_INDEX_PATH)
     if not (index_path / "index.faiss").exists():
         logger.info("FAISS index not found — running ingest now...")
         try:
             from vectorstore.ingest import DocumentIngestionPipeline
-            from pathlib import Path as _Path
             pipeline_ingest = DocumentIngestionPipeline()
-            kb_path = _Path(__file__).parent.parent / "data" / "healthcare_knowledge_base.md"
-            extra = [str(kb_path)] if kb_path.exists() else []
-            pipeline_ingest.run(extra_paths=extra, force_rebuild=True)
+            # Empty index — will be populated by user uploads only
+            pipeline_ingest.run(extra_paths=[], force_rebuild=True)
             logger.success("Ingest complete.")
         except Exception as e:
             logger.error(f"Ingest failed: {e} — continuing without pre-built index.")
