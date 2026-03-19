@@ -1,9 +1,6 @@
 # ============================================================
-# requirements-deploy.txt — RENDER PRODUCTION (lightweight)
-# Strips heavy ML deps: torch, sentence-transformers, ragas
-# Uses OpenAI embeddings instead of local SentenceTransformer
+# requirements.txt — FULL LOCAL DEVELOPMENT
 # ============================================================
-
 # Core LLM & Orchestration
 langchain==0.3.25
 langchain-openai==0.3.16
@@ -11,8 +8,9 @@ langchain-community==0.3.24
 langgraph==0.4.1
 openai==1.78.0
 
-# Vector Stores (FAISS only — no sentence-transformers/torch)
+# Vector Stores
 faiss-cpu==1.9.0
+sentence-transformers==4.1.0
 pinecone==6.0.0
 
 # API Backend
@@ -21,21 +19,30 @@ uvicorn[standard]==0.34.2
 pydantic==2.11.4
 python-multipart==0.0.20
 
-# Keyword search
-rank-bm25==0.2.2
+# UI
+streamlit==1.45.1
+
+# Evaluation
+ragas==0.2.15
+datasets==3.6.0
 
 # Data & Utilities
 pypdf==5.4.0
+python-docx==1.1.2
 tiktoken==0.9.0
-numpy==1.26.4
+numpy==2.2.5
 pandas==2.2.3
 python-dotenv==1.1.0
 httpx==0.28.1
 
-# Monitoring & Logging
-loguru==0.7.3
-prometheus-client==0.22.0
+# Local LLM — Privacy Mode (Apple Silicon only, optional)
+# pip install airllm mlx mlx-lm   ← run separately, not auto-installed
+# airllm==2.11.0
+# mlx>=0.31.0
+# mlx-lm>=0.31.0
 
-# Multi-Agent External Tools
+prometheus-client==0.22.0
+pytest-asyncio==0.26.0
+rank-bm25==0.2.2
+langchain-nvidia-ai-endpoints==0.3.9
 tavily-python==0.7.23
-langchain-nvidia-ai-endpoints==1.2.1

@@ -50,7 +50,9 @@ class Config:
 
     # API
     API_HOST: str = os.getenv("API_HOST", "0.0.0.0")
-    API_PORT: int = int(os.getenv("API_PORT", "8000"))
+    # Render sets PORT; local .env might set API_PORT.
+    # We prioritize PORT to ensure Render's load balancer can reach the app.
+    API_PORT: int = int(os.getenv("PORT") or os.getenv("API_PORT") or "8000")
 
     # Logging
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
