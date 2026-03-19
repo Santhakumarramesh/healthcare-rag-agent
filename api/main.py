@@ -21,6 +21,9 @@ sys.path.append(str(Path(__file__).parent.parent))
 from agents.rag_pipeline import HealthcareRAGPipeline
 from api.records import router as records_router
 from utils.config import config
+from utils.cache import response_cache
+from utils.rate_limiter import rate_limiter
+from utils.hallucination_detector import detect_hallucination
 
 REQUEST_COUNT = Counter("rag_requests_total", "Total RAG requests", ["intent"])
 REQUEST_LATENCY = Histogram("rag_request_latency_seconds", "Request latency")
@@ -125,10 +128,35 @@ async def chat(request: ChatRequest):
     if not pipeline:
         raise HTTPException(status_code=503, detail="Pipeline not initialized")
 
+    # Rate limiting
+    client_id = request.session_id or "anonymous"
+    allowed, reason = rate_limiter.is_allowed(client_id)
+    if not allowed:
+        raise HTTPException(status_code=429, detail=reason)
+
+    # Check cache first
+    cached_response = response_cache.get(request.query)
+    if cached_response:
+        logger.info(f"Returning cached response for query: {request.query[:40]}...")
+        return ChatResponse(**cached_response)
+
     start_time = time.time()
     try:
         result = await pipeline.run(request.query)
         latency_ms = (time.time() - start_time) * 1000
+
+        # Run hallucination detection if we have context
+        hallucination_score = 0.0
+        if result.get("context") and config.OPENAI_API_KEY:
+            hall_result = await detect_hallucination(
+                context=result.get("context", ""),
+                response=result.get("response", ""),
+                api_key=config.OPENAI_API_KEY
+            )
+            hallucination_score = hall_result.get("score", 0.0)
+            # Override risk level if hallucination detected
+            if hall_result.get("risk_level") == "high":
+                result["hallucination_risk"] = "high"
 
         REQUEST_COUNT.labels(intent=result.get("intent", "unknown")).inc()
         REQUEST_LATENCY.observe(latency_ms / 1000)
@@ -139,21 +167,27 @@ async def chat(request: ChatRequest):
         logger.info(
             f"Query: '{request.query[:40]}...' | "
             f"Intent: {result.get('intent')} | "
-            f"Latency: {latency_ms:.0f}ms"
+            f"Latency: {latency_ms:.0f}ms | "
+            f"Hallucination: {hallucination_score:.2f}"
         )
 
-        return ChatResponse(
-            response=result["response"],
-            intent=result.get("intent", "unknown"),
-            is_emergency=result.get("is_emergency", False),
-            retrieval_confidence=result.get("retrieval_confidence", 0.0),
-            quality_score=result.get("quality_score", 0.0),
-            hallucination_risk=result.get("hallucination_risk", "unknown"),
-            evaluation_notes=result.get("evaluation_notes", ""),
-            agent_trace=result.get("agent_trace", []),
-            sources=result.get("sources", []),
-            latency_ms=round(latency_ms, 2),
-        )
+        response_data = {
+            "response": result["response"],
+            "intent": result.get("intent", "unknown"),
+            "is_emergency": result.get("is_emergency", False),
+            "retrieval_confidence": result.get("retrieval_confidence", 0.0),
+            "quality_score": result.get("quality_score", 0.0),
+            "hallucination_risk": result.get("hallucination_risk", "unknown"),
+            "evaluation_notes": result.get("evaluation_notes", ""),
+            "agent_trace": result.get("agent_trace", []),
+            "sources": result.get("sources", []),
+            "latency_ms": round(latency_ms, 2),
+        }
+
+        # Cache the response
+        response_cache.set(request.query, response_data)
+
+        return ChatResponse(**response_data)
     except Exception as e:
         logger.error(f"Chat error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -193,6 +227,16 @@ async def reset_conversation():
 @app.get("/", tags=["System"])
 async def root():
     return {"name": "Healthcare RAG Multi-Agent API", "version": "1.0.0", "docs": "/docs"}
+
+
+@app.get("/stats", tags=["System"])
+async def get_stats():
+    """Get system statistics including cache and rate limiter stats."""
+    return {
+        "cache": response_cache.stats(),
+        "rate_limiter": rate_limiter.stats(),
+        "pipeline_loaded": pipeline is not None,
+    }
 
 
 # ── Local LLM Management Endpoints ───────────────────────────────────────────
