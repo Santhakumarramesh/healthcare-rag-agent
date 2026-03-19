@@ -1,25 +1,25 @@
 services:
-  # ── FastAPI Backend (API only — no heavy ML deps on Render)
+  # ── FastAPI Backend ──────────────────────────────────────────────────────────
   - type: web
     name: healthcare-rag-api
     env: python
     region: oregon
     plan: free
-    buildCommand: pip install -r requirements.txt && python vectorstore/ingest.py
-    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
+    buildCommand: "pip install -r requirements.txt && python vectorstore/ingest.py"
+    startCommand: "uvicorn api.main:app --host 0.0.0.0 --port $PORT"
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.10
+        value: "3.11.10"
       - key: OPENAI_API_KEY
         sync: false
       - key: OPENAI_MODEL
-        value: gpt-4o-mini
+        value: "gpt-4o-mini"
       - key: EMBEDDING_MODEL
-        value: text-embedding-3-small
+        value: "text-embedding-3-small"
       - key: VECTOR_STORE_TYPE
-        value: faiss
+        value: "faiss"
       - key: FAISS_INDEX_PATH
-        value: ./vectorstore/faiss_index
+        value: "./vectorstore/faiss_index"
       - key: MAX_RETRIEVED_DOCS
         value: "5"
       - key: RERANK_TOP_K
@@ -27,20 +27,20 @@ services:
       - key: CONFIDENCE_THRESHOLD
         value: "0.6"
       - key: LOG_LEVEL
-        value: INFO
+        value: "INFO"
       - key: APP_ENV
-        value: production
+        value: "production"
 
-  # ── Streamlit UI
+  # ── Streamlit UI ─────────────────────────────────────────────────────────────
   - type: web
     name: healthcare-rag-ui
     env: python
     region: oregon
     plan: free
-    buildCommand: pip install -r requirements-ui.txt
-    startCommand: streamlit run streamlit_app/app.py --server.port $PORT --server.headless true
+    buildCommand: "pip install -r requirements-ui.txt"
+    startCommand: "streamlit run streamlit_app/app.py --server.port $PORT --server.headless true --server.enableCORS false"
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.10
+        value: "3.11.10"
       - key: API_BASE_URL
-        value: https://healthcare-rag-api.onrender.com
+        value: "https://healthcare-rag-api.onrender.com"
