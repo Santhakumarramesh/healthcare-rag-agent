@@ -1,198 +1,194 @@
-# 🏥 Healthcare Super-Agent — Multi-Agent LLM System (10/10 Vision)
+# Healthcare AI Super-Agent
 
-> **Architect-level AI system for healthcare FAQ. Features NVIDIA NIM acceleration (Llama-3.1-405B), Hybrid RRF search, and a closed-loop LangGraph self-correction architecture.**
+**Multi-agent RAG system for healthcare Q&A — featuring hybrid retrieval, real-time web search, self-correction loop, and on-device privacy mode.**
 
-[![NVIDIA NIM](https://img.shields.io/badge/Powered%20by-NVIDIA%20NIM-76B900?logo=nvidia)](https://build.nvidia.com)
-[![LangGraph](https://img.shields.io/badge/Orchestration-LangGraph-green)](https://github.com/langchain-ai/langgraph)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-healthcare--rag--ui.onrender.com-blue)](https://healthcare-rag-ui.onrender.com)
+[![API Docs](https://img.shields.io/badge/API%20Docs-healthcare--rag--api.onrender.com/docs-teal)](https://healthcare-rag-api.onrender.com/docs)
 [![Python 3.11](https://img.shields.io/badge/Python-3.11-blue?logo=python)](https://python.org)
+[![LangGraph](https://img.shields.io/badge/Orchestration-LangGraph%200.4-green)](https://github.com/langchain-ai/langgraph)
+[![Tests](https://img.shields.io/badge/Tests-12%20passing-brightgreen)](tests/)
 
 ---
 
-## 🎯 Project Overview (The 10/10 Vision)
+## What it does
 
-This system is built as a **Senior Architect Portfolio Piece**, demonstrating a "Super-Agent" capable of expert-level reasoning, real-time knowledge synthesis, and autonomous quality correction.
+A user asks a healthcare question. Behind the scenes, five specialized agents collaborate:
 
-### Key Pillars
-| Pillar | Technology | Value |
-|--------|------------|-------|
-| 🧠 **Expert Reasoning** | **NVIDIA NIM (Llama 3.1 405B)** | Expert-level medical knowledge & reasoning |
-| 🔍 **Hybrid Retrieval** | **RRF (Vector + Keyword BM25)** | Merges keyword precision with semantic depth |
-| 🏗️ **Architectural Rerank**| **Llama Nemotron Rerank** | NVIDIA-accelerated clinical relevance |
-| 🔄 **Self-Correction** | **LangGraph Reflection Loop** | Auto-retries if quality score < 0.7 |
-| 🌍 **Live Knowledge** | **Tavily Web Search** | Fetches real-time drug recalls & 2025 news |
+1. **Router** — classifies intent (FAQ, emergency, recent news, follow-up), rewrites the query for retrieval, detects life-threatening situations and bypasses the pipeline for immediate emergency response
+2. **Retriever** — runs BM25 keyword search + FAISS dense vector search in parallel, fuses results with Reciprocal Rank Fusion, then reranks with a cross-encoder (or NVIDIA NIM Nemotron reranker)
+3. **Web Search** — for queries about 2024–2025 drug recalls, outbreaks, or recent guidelines, calls Tavily's real-time search API instead of the static knowledge base
+4. **Responder** — generates a grounded, empathetic answer using only the retrieved context, never hallucinating beyond it
+5. **Evaluator** — scores the response for faithfulness, relevance, and safety; if quality < 0.7, triggers autonomous self-correction (max 1 retry)
+
+Every token streams to the UI in real time via Server-Sent Events.
 
 ---
 
-## 🏗️ System Architecture
+## Architecture
 
-```mermaid
-graph TD
-    User([User Query]) --> Router{Router Agent}
-    Router -- Medical FAQ --> Retriever[Hybrid RRF Retriever]
-    Router -- Recent News --> WebSearch[Tavily Search Agent]
-    Router -- Emergency --> Responder[Responder Agent]
-    
-    Retriever --> Responder
-    WebSearch --> Responder
-    
-    Responder --> Evaluator{Evaluator Agent}
-    Evaluator -- Score >= 0.7 --> Finish([Streamed Tokens])
-    Evaluator -- Score < 0.7 --> Responder
+```
+User Query
+    │
+    ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   LangGraph State Machine                    │
+│                                                             │
+│  ┌──────────┐    ┌──────────────┐    ┌──────────────────┐  │
+│  │  Router  │───▶│  Retriever   │───▶│    Responder     │  │
+│  │  Agent   │    │ BM25+FAISS   │    │  GPT-4o-mini /   │  │
+│  │          │    │ RRF + Rerank │    │  NVIDIA NIM      │  │
+│  └──────────┘    └──────────────┘    └────────┬─────────┘  │
+│       │                                        │             │
+│       │ web_search intent                      ▼             │
+│       │          ┌──────────────┐    ┌──────────────────┐  │
+│       └─────────▶│  Web Search  │───▶│    Evaluator     │  │
+│                  │ Tavily API   │    │  Score + Retry   │  │
+│                  └──────────────┘    └────────┬─────────┘  │
+│                                               │ if < 0.7    │
+│                                               └──▶ Responder │
+└─────────────────────────────────────────────────────────────┘
+    │
+    ▼
+FastAPI (SSE streaming) ←→ Streamlit UI
 ```
 
-### Agentic Intelligence
-| Agent | Role | 10/10 Upgrade |
-|-------|------|---------------|
-| **Router** | Detects intent & safety | Now routes to Web Search for recent 2024+ events |
-| **Retriever** | Hybrid Search | Uses BM25 + Vector + RRF for "infinite recall" |
-| **Responder** | Medical reasoning | Powered by **Llama-3.1-405B** on NVIDIA NIM |
-| **Evaluator** | Quality guardrail | Triggers autonomous self-correction loop |
+---
+
+## Tech stack
+
+| Layer | Technology |
+|-------|-----------|
+| LLM orchestration | LangGraph 0.4 (async StateGraph) |
+| Primary LLM | OpenAI GPT-4o-mini (cloud) |
+| Optional LLM | NVIDIA NIM Llama-3.1-405B |
+| Privacy LLM | Llama 3 8B via AirLLM + Apple MLX (on-device) |
+| Embeddings | OpenAI text-embedding-3-small (prod) / all-MiniLM-L6-v2 (local) |
+| Vector store | FAISS (local) + Pinecone (cloud fallback) |
+| Keyword search | BM25Okapi (rank-bm25) |
+| Retrieval fusion | Reciprocal Rank Fusion (RRF) |
+| Reranking | cross-encoder/ms-marco-MiniLM-L-6-v2 / NVIDIA Nemotron |
+| Web search | Tavily API |
+| API backend | FastAPI + Uvicorn (async) |
+| Streaming | Server-Sent Events (SSE) via StreamingResponse |
+| Frontend | Streamlit |
+| Monitoring | Prometheus metrics + custom hallucination detector |
+| Rate limiting | In-memory sliding window |
+| Response cache | LRU cache with TTL |
+| Evaluation | RAGAS (faithfulness, answer relevancy, context precision) |
+| Testing | pytest-asyncio, 12 intelligence tests with mocked LLM |
+| CI | GitHub Actions (Python 3.11, pytest --cov) |
+| Deployment | Render (API) + Streamlit Cloud (UI) |
 
 ---
 
-## 🛠️ Tech Stack
+## Key features
 
-- **LLM:** NVIDIA NIM (Llama 3.1 405B, Nemotron Reranker)
-- **Orchestration:** LangGraph (Stateful Graphs)
-- **Retrieval:** Hybrid RRF (FAISS + BM25 + Pinecone Fallback)
-- **Web Search:** Tavily API
-- **API/UI:** FastAPI + Streamlit (Full SSE v2 Streaming)
-- **Verification:** Pytest (12+ intelligence test cases)
+**Self-correcting pipeline** — the Evaluator agent scores every response across three dimensions: faithfulness to retrieved context, relevance to the question, and clinical safety. Responses scoring below 0.7 trigger an autonomous retry with a corrective prompt injected into the Responder's system message.
+
+**Hybrid retrieval with RRF** — BM25 catches exact medical terminology (drug names, ICD codes) that dense embeddings miss. FAISS catches semantic meaning. RRF merges both ranked lists mathematically, consistently outperforming either alone.
+
+**Real-time web search routing** — the Router detects queries about recent events (drug recalls, 2024+ guidelines, outbreaks) and routes to Tavily's live web search instead of the static knowledge base, so answers are never stale.
+
+**Privacy mode** — a toggle in the sidebar switches the entire LLM backend from OpenAI's API to Llama 3 8B running locally via AirLLM's layer-by-layer Apple MLX inference. Every token is generated on-device. No data leaves the machine.
+
+**Medical records analyzer** — a second tab lets users upload their own lab reports, discharge summaries, or doctor's notes (PDF or text). The system extracts structured information (diagnoses, lab values with normal/abnormal flags, medications, allergies) and then answers questions grounded strictly in those documents.
+
+**Hallucination detection** — a dedicated utility cross-checks final responses against retrieved context using embedding similarity, flagging responses that introduce claims not present in the source material.
 
 ---
 
-## 🚀 Quick Start
+## Quick start
 
-### 1. Configure Environment
-Add your keys to `.env` to activate the "Super-Agent" layer:
 ```bash
-OPENAI_API_KEY=sk-...
-NVIDIA_API_KEY=nvapi-...
-TAVILY_API_KEY=tvly-...
+git clone https://github.com/Santhakumarramesh/healthcare-rag-agent
+cd healthcare-rag-agent
+
+python3.11 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+
+cp .env.example .env
+# Add your OPENAI_API_KEY to .env
+
+python vectorstore/ingest.py          # build FAISS index (~30 seconds)
+python run.py api                     # start API on :8000
+python run.py ui                      # start UI on :8501 (new terminal)
 ```
 
-### 2. Launch Stack
+Or with Docker:
 ```bash
 docker-compose up --build
-# API:  http://localhost:8000
-# UI:   http://localhost:8501
 ```
 
 ---
 
-## 📡 API Reference
+## API endpoints
 
-### `POST /chat`
-Main query endpoint — runs the full 4-agent pipeline.
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/chat` | Full pipeline, returns complete JSON |
+| `POST` | `/chat/stream` | SSE streaming — token events + final metadata event |
+| `POST` | `/ingest/text` | Add text to shared knowledge base |
+| `POST` | `/ingest/file` | Upload PDF/text to shared knowledge base |
+| `POST` | `/records/upload` | Upload personal medical record (session-scoped) |
+| `POST` | `/records/analyze` | Extract structured data from uploaded records |
+| `POST` | `/records/query` | Ask questions about uploaded records |
+| `GET` | `/health` | Health check |
+| `GET` | `/metrics` | Prometheus metrics |
+| `GET` | `/stats` | Cache + rate limiter stats |
+| `POST` | `/local-model/toggle` | Switch between cloud and local LLM |
 
-```json
-// Request
-{
-  "query": "What are the symptoms of Type 2 diabetes?",
-  "session_id": "user-123"  // optional
-}
-
-// Response
-{
-  "session_id": "user-123",
-  "query": "What are the symptoms of Type 2 diabetes?",
-  "response": "Type 2 diabetes commonly presents with...",
-  "intent": "medical_faq",
-  "sources": ["data/healthcare_knowledge_base.md"],
-  "confidence": 0.85,
-  "eval_score": 0.89,
-  "eval_feedback": "Response is well-grounded in context and directly addresses the question.",
-  "latency_ms": 1243.5
-}
-```
-
-### `POST /ingest/text`
-Add new content to the knowledge base at runtime.
-
-```json
-{
-  "text": "Aspirin is used to reduce fever and relieve mild pain...",
-  "source_name": "drug_reference"
-}
-```
-
-### `GET /health` — System health check
-### `GET /stats` — Vector store statistics
-### `POST /evaluate` — Trigger async RAGAS evaluation batch
-
-Full interactive API docs: `http://localhost:8000/docs`
+Full interactive docs: `https://healthcare-rag-api.onrender.com/docs`
 
 ---
 
-## 📊 Evaluation Pipeline
-
-The system runs automated quality evaluation on every response and in batch via RAGAS:
-
-```bash
-# Run batch evaluation
-python evaluation/ragas_eval.py
-```
-
-**Metrics tracked:**
-- **Faithfulness**: Is the answer grounded in retrieved context? (hallucination detection)
-- **Answer Relevancy**: Does the answer address the user's question?
-- **Safety Score**: Is the response clinically safe and appropriate?
-- **Overall Score**: Weighted average of all three dimensions
-
-Results are logged to MLflow and saved as `evaluation/ragas_report.csv`.
-
----
-
-## 📁 Project Structure
+## Project structure
 
 ```
 healthcare-rag-agent/
 ├── agents/
-│   └── rag_pipeline.py       # LangGraph multi-agent pipeline (core)
+│   ├── rag_pipeline.py       # LangGraph 5-agent async pipeline (core)
+│   └── records_agent.py      # Medical record extraction + grounded QA
+├── api/
+│   ├── main.py               # FastAPI app — chat, ingest, streaming, monitoring
+│   └── records.py            # Personal records CRUD router
 ├── vectorstore/
-│   └── retriever.py          # Hybrid FAISS + Cross-Encoder re-ranking
+│   ├── retriever.py          # BM25 + FAISS + RRF + reranking
+│   ├── ingest.py             # Document ingestion pipeline
+│   └── personal_store.py     # Session-scoped in-memory FAISS for records
+├── streamlit_app/
+│   └── app.py                # Chat UI + Medical Records tab (720 lines)
+├── utils/
+│   ├── config.py             # Centralized settings (pydantic)
+│   ├── cache.py              # LRU response cache with TTL
+│   ├── rate_limiter.py       # Sliding window rate limiter
+│   ├── hallucination_detector.py  # Embedding-based hallucination check
+│   └── local_llm.py          # AirLLM wrapper for Apple MLX inference
 ├── evaluation/
-│   └── ragas_eval.py         # RAGAS evaluation pipeline
-├── data/
-│   ├── healthcare_knowledge_base.md    # Seed knowledge base
-│   ├── ingest_knowledge_base.py        # Ingestion script
-│   └── faiss_index/                    # Persisted FAISS index (auto-created)
-├── .env.example              # Environment variables template
-├── requirements.txt
-├── Dockerfile
-└── docker-compose.yml        # Full stack (API + UI + MLflow)
+│   ├── evaluate.py           # RAGAS evaluation pipeline
+│   └── ragas_eval.py         # Batch evaluation with MLflow logging
+├── tests/
+│   ├── test_config.py        # Config validation tests
+│   └── test_intelligence.py  # 9 async agent intelligence tests
+├── .github/workflows/        # CI — pytest on every push
+├── render.yaml               # Render deployment config
+├── Procfile                  # Process definition
+└── requirements.txt          # Production deps (no torch, no CUDA)
 ```
 
 ---
 
-## 💡 Design Decisions
+## Honest limitations
 
-**Why LangGraph over simple LangChain chains?**
-LangGraph provides explicit state management and conditional routing — critical for production systems where you need to handle safety flags, route different query types, and add new agents without rewriting the entire pipeline.
-
-**Why hybrid FAISS + Pinecone?**
-FAISS provides sub-millisecond local retrieval for fast responses; Pinecone provides persistent, scalable cloud storage. The re-ranking layer ensures quality regardless of which store retrieves the candidate.
-
-**Why per-query evaluation?**
-Embedding an evaluator agent in the pipeline creates a self-auditing system — each response is automatically scored for quality, enabling continuous monitoring without a separate evaluation job.
+- Personal document store is a singleton — breaks with multi-worker deployment (fine on free tier)
+- Render free tier cold-starts after 15 min inactivity — first request takes ~30 seconds
+- Local privacy mode requires Apple Silicon Mac (M1/M2/M3)
+- NVIDIA NIM reranker requires a valid NVIDIA API key
 
 ---
 
-## 🗺️ Roadmap
+## Author
 
-- [x] Streaming responses via SSE (v2)
-- [x] Multi-turn conversation memory (20-turn window)
-- [x] Cloud-hosted Vector Store (Pinecone Fallback)
-- [ ] AWS ECS deployment with ALB
-- [ ] User feedback loop → auto-retraining trigger
-- [ ] Support for PDF, DOCX knowledge base uploads via UI
-
----
-
-## 👤 Author
-
-**Santhakumar Ramesh** — AI/ML Engineer @ DXC Technology  
-MS Data Science, University at Buffalo
+**Santhakumar Ramesh** — AI/ML Engineer @ DXC Technology | MS Data Science, University at Buffalo
 
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-blue?logo=linkedin)](https://www.linkedin.com/in/santhakumar-ramesh/)
 [![GitHub](https://img.shields.io/badge/GitHub-Follow-black?logo=github)](https://github.com/santhakumarramesh)

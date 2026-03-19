@@ -145,6 +145,42 @@ class DocumentIngestionPipeline:
                 })
         return documents
 
+    def _add_documents_to_index(self, docs: list) -> int:
+        """Add LangChain Document objects to the existing FAISS index."""
+        from langchain.schema import Document
+        texts = [d.page_content for d in docs]
+        chunks = [{"text": t, "metadata": getattr(d, "metadata", {})} for d, t in zip(docs, texts)]
+        embeddings = self.embed_texts(texts)
+        if self.index_exists():
+            idx, existing = self.load_index()
+            import numpy as np
+            idx.add(embeddings)
+            combined = existing + chunks
+            self.save_index(idx, combined)
+        else:
+            index = self.build_faiss_index(embeddings)
+            self.save_index(index, chunks)
+        return len(chunks)
+
+    def _ingest_file_to_index(self, file_path: str, source_name: str = "") -> int:
+        """Ingest a single file (PDF or text) into the shared index."""
+        suffix = Path(file_path).suffix.lower()
+        if suffix == ".pdf":
+            docs = self.ingest_pdf(file_path)
+        else:
+            docs = self._ingest_text_file(file_path)
+        all_chunks = self.chunk_documents(docs)
+        texts = [c["text"] for c in all_chunks]
+        embeddings = self.embed_texts(texts)
+        if self.index_exists():
+            idx, existing = self.load_index()
+            idx.add(embeddings)
+            self.save_index(idx, existing + all_chunks)
+        else:
+            index = self.build_faiss_index(embeddings)
+            self.save_index(index, all_chunks)
+        return len(all_chunks)
+
     def run(self, extra_paths: Optional[list] = None, force_rebuild: bool = False,
             # kept for backward compat
             extra_pdf_paths: Optional[list] = None):

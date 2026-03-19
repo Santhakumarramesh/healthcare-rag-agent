@@ -9,13 +9,12 @@ from typing import Optional, List
 
 import json
 import asyncio
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from loguru import logger
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 from fastapi.responses import Response, StreamingResponse
-import json
 
 sys.path.append(str(Path(__file__).parent.parent))
 from agents.rag_pipeline import HealthcareRAGPipeline
@@ -227,6 +226,62 @@ async def reset_conversation():
 @app.get("/", tags=["System"])
 async def root():
     return {"name": "Healthcare RAG Multi-Agent API", "version": "1.0.0", "docs": "/docs"}
+
+
+# ── Knowledge Base Ingestion Endpoints ───────────────────────────────────────
+
+class IngestTextRequest(BaseModel):
+    text: str = Field(..., min_length=10)
+    source_name: str = "custom_document"
+
+
+class IngestResponse(BaseModel):
+    chunks_stored: int
+    source: str
+    message: str
+
+
+@app.post("/ingest/text", response_model=IngestResponse, tags=["Knowledge Base"])
+async def ingest_text(req: IngestTextRequest):
+    """Add raw text to the shared knowledge base vector store."""
+    try:
+        from vectorstore.ingest import DocumentIngestionPipeline
+        pip = DocumentIngestionPipeline()
+        from langchain.schema import Document
+        doc = Document(page_content=req.text, metadata={"source": req.source_name})
+        chunks = pip._add_documents_to_index([doc])
+        return IngestResponse(
+            chunks_stored=chunks,
+            source=req.source_name,
+            message=f"Successfully ingested {chunks} chunks from '{req.source_name}'.",
+        )
+    except Exception as e:
+        logger.error(f"Ingest error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/ingest/file", response_model=IngestResponse, tags=["Knowledge Base"])
+async def ingest_file(file: UploadFile = File(...)):
+    """Upload a PDF or text file to the shared knowledge base."""
+    import tempfile, shutil, os
+    suffix = Path(file.filename or "upload").suffix or ".txt"
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        shutil.copyfileobj(file.file, tmp)
+        tmp_path = tmp.name
+    try:
+        from vectorstore.ingest import DocumentIngestionPipeline
+        pip = DocumentIngestionPipeline()
+        chunks = pip._ingest_file_to_index(tmp_path, source_name=file.filename or "upload")
+        return IngestResponse(
+            chunks_stored=chunks,
+            source=file.filename or "upload",
+            message=f"Successfully ingested {chunks} chunks from '{file.filename}'.",
+        )
+    except Exception as e:
+        logger.error(f"File ingest error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        os.unlink(tmp_path)
 
 
 @app.get("/stats", tags=["System"])

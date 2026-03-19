@@ -344,7 +344,7 @@ with tab_chat:
             badge = score_badge(msg.get("eval_score"))
             icon  = intent_emoji(msg.get("intent", ""))
             sources_html = "".join(
-                f'<span class="source-badge">📄 {s.split("/")[-1][:30]}</span>'
+                f'<span class="source-badge">📄 {(s.get("source","") or s.get("metadata",{}).get("source","record") if isinstance(s,dict) else str(s)).split("/")[-1][:30]}</span>'
                 for s in msg.get("sources", [])
             )
             st.markdown(f"""<div class="chat-message assistant">
