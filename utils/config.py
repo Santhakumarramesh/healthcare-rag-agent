@@ -38,7 +38,7 @@ class Config:
     # Retrieval
     MAX_RETRIEVED_DOCS: int = int(os.getenv("MAX_RETRIEVED_DOCS", "5"))
     EVAL_SAMPLE_SIZE: int = 20
-    
+
     # Hybrid Search
     RRF_K: int = 60
     RERANK_TOP_K: int = int(os.getenv("RERANK_TOP_K", "3"))
@@ -83,14 +83,14 @@ class Config:
 
         if is_placeholder(cls.OPENAI_API_KEY):
             logger.warning("OPENAI_API_KEY is missing or using a placeholder!")
-        
+
         # Mask keys for logging
         def mask(key: str): return f"{key[:8]}...{key[-4:]}" if len(key) > 8 else "****"
-        
+
         logger.info("Config status:")
         logger.info(f"  - OpenAI Model: {cls.OPENAI_MODEL}")
         logger.info(f"  - Vector Store: {cls.VECTOR_STORE_TYPE}")
-        
+
         if not is_placeholder(cls.NVIDIA_API_KEY):
             logger.info(f"  - NVIDIA Engine: {cls.NVIDIA_MODEL} (Key: {mask(cls.NVIDIA_API_KEY)})")
         else:

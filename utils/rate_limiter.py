@@ -12,7 +12,7 @@ class RateLimiter:
     Token bucket rate limiter.
     Limits requests per IP/session to prevent abuse.
     """
-    
+
     def __init__(self, requests_per_minute: int = 20, requests_per_hour: int = 100):
         """
         Args:
@@ -21,12 +21,12 @@ class RateLimiter:
         """
         self.rpm_limit = requests_per_minute
         self.rph_limit = requests_per_hour
-        
+
         # Track requests: client_id -> list of timestamps
         self._requests: Dict[str, list] = defaultdict(list)
-        
+
         logger.info(f"RateLimiter initialized: {requests_per_minute} req/min, {requests_per_hour} req/hour")
-    
+
     def is_allowed(self, client_id: str) -> Tuple[bool, str, Optional[int]]:
         """
         Check if client is allowed to make a request.
@@ -67,13 +67,13 @@ class RateLimiter:
         # Allow request
         self._requests[client_id].append(now)
         return True, "", None
-    
+
     def reset(self, client_id: str):
         """Reset rate limit for a specific client."""
         if client_id in self._requests:
             del self._requests[client_id]
             logger.info(f"Rate limit reset for client={client_id}")
-    
+
     def stats(self) -> Dict[str, int]:
         """Get rate limiter statistics."""
         now = time.time()
@@ -81,7 +81,7 @@ class RateLimiter:
             1 for requests in self._requests.values()
             if any(now - ts < 3600 for ts in requests)
         )
-        
+
         return {
             "total_clients": len(self._requests),
             "active_clients_last_hour": active_clients,

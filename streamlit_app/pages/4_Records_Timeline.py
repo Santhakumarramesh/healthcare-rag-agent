@@ -83,22 +83,22 @@ if "selected_record" not in st.session_state:
 # Summary metrics
 if timeline_events:
     col_m1, col_m2, col_m3, col_m4 = st.columns(4, gap="large")
-    
+
     with col_m1:
         render_metric_card("Total Activities", str(len(timeline_events)), "All time")
-    
+
     with col_m2:
         ai_questions = len([e for e in timeline_events if e["type"] == "AI Question"])
         render_metric_card("AI Questions", str(ai_questions), "Total")
-    
+
     with col_m3:
         daily_checkins = len([e for e in timeline_events if e["type"] == "Daily Check-in"])
         render_metric_card("Daily Check-ins", str(daily_checkins), "Total")
-    
+
     with col_m4:
         high_risk = len([e for e in timeline_events if e.get("risk_level") == "high"])
         render_metric_card("High Risk Alerts", str(high_risk), "Total")
-    
+
     st.markdown("<br><br>", unsafe_allow_html=True)
 
 # Two-pane layout
@@ -111,37 +111,37 @@ with col_list:
         Activity Timeline
     </div>
     """, unsafe_allow_html=True)
-    
+
     # Search bar
     search_query = st.text_input("Search records", placeholder="Search by keyword...", label_visibility="collapsed")
-    
+
     # Filters
     col_f1, col_f2 = st.columns(2)
     with col_f1:
         filter_type = st.selectbox("Type", ["All", "AI Question", "Daily Check-in", "Report Analysis"])
     with col_f2:
         filter_risk = st.selectbox("Risk", ["All", "High", "Medium", "Low"])
-    
+
     st.markdown("<br>", unsafe_allow_html=True)
-    
+
     # Section 2: Records List / Timeline
     if timeline_events:
         filtered_events = timeline_events
-        
+
         # Apply filters
         if filter_type != "All":
             filtered_events = [e for e in filtered_events if e["type"] == filter_type]
-        
+
         if filter_risk != "All":
             filtered_events = [e for e in filtered_events if e.get("risk_level", "").lower() == filter_risk.lower()]
-        
+
         # Apply search
         if search_query:
             filtered_events = [e for e in filtered_events if search_query.lower() in e["title"].lower() or search_query.lower() in e["content"].lower()]
-        
+
         st.markdown(f"**{len(filtered_events)} records found**")
         st.markdown("<br>", unsafe_allow_html=True)
-        
+
         for idx, event in enumerate(filtered_events):
             # Format timestamp
             try:
@@ -149,25 +149,25 @@ with col_list:
                 date_str = ts.strftime("%b %d, %Y")
             except:
                 date_str = event["timestamp"]
-            
+
             # Confidence badge if applicable
             conf_badge = ""
             if "confidence" in event:
                 conf = event["confidence"]
                 conf_class = "high" if conf > 0.8 else "medium" if conf > 0.6 else "low"
                 conf_badge = f'<span class="confidence-badge confidence-{conf_class}" style="font-size: 0.75rem;">{conf:.0%}</span>'
-            
+
             # Risk badge if applicable
             risk_badge = ""
             if "risk_level" in event:
                 risk_level = event["risk_level"]
                 risk_class = "high" if risk_level == "high" else "medium" if risk_level == "medium" else "low"
                 risk_badge = f'<span class="confidence-badge confidence-{risk_class}" style="font-size: 0.75rem;">{risk_level.title()}</span>'
-            
+
             # Record card
             is_selected = st.session_state.selected_record == idx
             border_color = "var(--teal-primary)" if is_selected else "var(--border-light)"
-            
+
             st.markdown(f"""
             <div style="border: 2px solid {border_color}; border-radius: 12px; padding: 1rem; margin-bottom: 1rem; cursor: pointer; background: var(--card-white);">
                 <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;">
@@ -183,8 +183,8 @@ with col_list:
                 </div>
             </div>
             """, unsafe_allow_html=True)
-            
-            if st.button(f"View Details", key=f"view_{idx}", use_container_width=True):
+
+            if st.button("View Details", key=f"view_{idx}", use_container_width=True):
                 st.session_state.selected_record = idx
                 st.rerun()
     else:
@@ -197,36 +197,36 @@ with col_detail:
         Record Details
     </div>
     """, unsafe_allow_html=True)
-    
+
     if st.session_state.selected_record is not None and st.session_state.selected_record < len(timeline_events):
         event = timeline_events[st.session_state.selected_record]
-        
+
         st.markdown(f"""
         <div class="answer-card">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                 <div style="font-size: 1.1rem; font-weight: 700;">{event['icon']} {event['type']}</div>
                 <div style="font-size: 0.875rem; color: var(--text-muted);">{format_timestamp(event['timestamp'])}</div>
             </div>
-            
+
             <div style="font-size: 1rem; font-weight: 600; margin-bottom: 1rem;">
                 {event['title']}
             </div>
-            
+
             <div style="color: var(--text-secondary); line-height: 1.7; margin-bottom: 1rem;">
                 {event['content']}
             </div>
         </div>
         """, unsafe_allow_html=True)
-        
+
         # Show full data based on type
         data = event.get("data", {})
-        
+
         if event["type"] == "AI Question":
             if data.get("answer", {}).get("key_insights"):
                 st.markdown("**Key Insights:**")
                 for insight in data["answer"]["key_insights"]:
                     st.markdown(f"- {insight}")
-        
+
         elif event["type"] == "Daily Check-in":
             st.markdown("**Check-in Details:**")
             col_d1, col_d2 = st.columns(2)
@@ -236,12 +236,12 @@ with col_detail:
             with col_d2:
                 st.markdown(f"**Appetite:** {data.get('appetite', 'N/A')}")
                 st.markdown(f"**Hydration:** {data.get('hydration', 'N/A')}")
-        
+
         elif event["type"] == "Report Analysis":
             if data.get("extracted_values"):
                 st.markdown("**Extracted Values:**")
                 st.markdown(f"Total: {len(data['extracted_values'])}")
-    
+
     else:
         st.markdown("""
         <div class="answer-card" style="text-align: center; padding: 4rem 2rem;">

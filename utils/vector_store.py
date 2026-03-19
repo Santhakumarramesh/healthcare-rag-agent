@@ -10,7 +10,6 @@ import hashlib
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 
-import faiss
 import numpy as np
 from loguru import logger
 from dotenv import load_dotenv

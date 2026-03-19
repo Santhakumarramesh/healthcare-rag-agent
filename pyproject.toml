@@ -1,0 +1,26 @@
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+# E/W: pycodestyle errors/warnings
+# F: pyflakes (unused imports, undefined names, etc.)
+select = ["E", "F", "W"]
+
+ignore = [
+    # Line too long — handled by black/formatter separately
+    "E501",
+    # Bare except — present in legacy code, refactor separately
+    "E722",
+    # == True comparisons — SQLAlchemy ORM pattern
+    "E712",
+    # Module-level import not at top — used in data scripts with sys.path manipulation
+    "E402",
+]
+
+# Allow unused imports in __init__.py re-exports
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+"tests/*" = ["F401", "F811", "F841"]
+"data/*" = ["E402", "F401"]
+"evaluation/*" = ["F401"]

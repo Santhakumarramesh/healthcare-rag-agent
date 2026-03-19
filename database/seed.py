@@ -24,7 +24,7 @@ def hash_password(password: str) -> str:
 def seed_demo_users():
     """Seed database with demo users"""
     db = get_db_session()
-    
+
     demo_users = [
         {
             "user_id": "admin-001",
@@ -48,7 +48,7 @@ def seed_demo_users():
             "role": UserRole.PATIENT
         }
     ]
-    
+
     try:
         for user_data in demo_users:
             # Check if user exists
@@ -56,7 +56,7 @@ def seed_demo_users():
             if existing:
                 logger.info(f"User already exists: {user_data['email']}")
                 continue
-            
+
             user = User(
                 user_id=user_data["user_id"],
                 email=user_data["email"],
@@ -67,10 +67,10 @@ def seed_demo_users():
             )
             db.add(user)
             logger.success(f"Created user: {user_data['email']} ({user_data['role']})")
-        
+
         db.commit()
         logger.success("Demo users seeded successfully!")
-        
+
     except Exception as e:
         logger.error(f"Error seeding users: {e}")
         db.rollback()
@@ -81,8 +81,8 @@ def seed_demo_users():
 if __name__ == "__main__":
     logger.info("Initializing database...")
     init_db()
-    
+
     logger.info("Seeding demo users...")
     seed_demo_users()
-    
+
     logger.info("Database seeding complete!")

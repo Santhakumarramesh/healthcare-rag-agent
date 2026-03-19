@@ -64,10 +64,10 @@ def infer_flag(value: str, reference: Optional[str]) -> Optional[str]:
 def parse_report_text(text: str) -> List[Dict]:
     """
     Parse medical report text to extract structured lab values.
-    
+
     Args:
         text: Raw report text
-        
+
     Returns:
         List of extracted values with name, value, unit, reference, flag
     """

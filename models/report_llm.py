@@ -10,7 +10,7 @@ from typing import List, Dict, Any
 
 class ReportLLM:
     """LLM client for medical report analysis."""
-    
+
     def __init__(self, api_key: str, model: str = "gpt-4o-mini"):
         self.client = OpenAI(api_key=api_key)
         self.model = model
@@ -22,11 +22,11 @@ class ReportLLM:
     ) -> Dict[str, Any]:
         """
         Analyze medical report and generate structured explanation.
-        
+
         Args:
             raw_text: Raw report text
             extracted_values: Extracted lab values
-            
+
         Returns:
             Structured analysis with summary, explanation, concerns, next steps
         """

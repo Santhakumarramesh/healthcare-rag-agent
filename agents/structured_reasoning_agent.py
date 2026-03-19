@@ -6,7 +6,7 @@ and structured output format.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from typing import List, Dict, Any, Optional
 import json
 from loguru import logger
@@ -126,12 +126,12 @@ Rules:
     ) -> ReasoningResult:
         """
         Run structured reasoning on query and retrieved evidence.
-        
+
         Args:
             query: User query
             route: Query route type
             retrieved_chunks: Retrieved document chunks
-            
+
         Returns:
             Structured reasoning result
         """
@@ -223,11 +223,11 @@ _structured_reasoning_agent: Optional[StructuredReasoningAgent] = None
 def get_structured_reasoning_agent(api_key: str, model: str = "gpt-4o-mini") -> StructuredReasoningAgent:
     """
     Get or create structured reasoning agent singleton.
-    
+
     This is lazy-loaded to avoid startup delays.
     """
     global _structured_reasoning_agent
-    
+
     if _structured_reasoning_agent is None:
         try:
             from models.llm_client import OpenAILLMClient
@@ -237,5 +237,5 @@ def get_structured_reasoning_agent(api_key: str, model: str = "gpt-4o-mini") -> 
         except Exception as e:
             logger.error(f"[StructuredReasoningAgent] Failed to create: {e}")
             raise
-    
+
     return _structured_reasoning_agent

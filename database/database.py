@@ -39,15 +39,15 @@ def init_db():
     """Initialize database - create all tables"""
     try:
         logger.info("[Database] Initializing database...")
-        
+
         # Ensure data directory exists
         DATABASE_DIR.mkdir(parents=True, exist_ok=True)
-        
+
         # Create tables
         Base.metadata.create_all(bind=engine)
-        
+
         logger.success(f"[Database] Database initialized at {DATABASE_URL}")
-        
+
         # Verify connection (SQLAlchemy 2.0 requires text() for raw SQL)
         db = SessionLocal()
         try:
@@ -56,7 +56,7 @@ def init_db():
             logger.success("[Database] Connection verified")
         finally:
             db.close()
-            
+
     except Exception as e:
         logger.error(f"[Database] Initialization failed: {e}")
         logger.warning("[Database] Continuing without database (will use in-memory fallback)")
@@ -65,14 +65,14 @@ def init_db():
 def get_db() -> Session:
     """
     Get database session.
-    
+
     Usage:
         db = next(get_db())
         try:
             # Use db
         finally:
             db.close()
-    
+
     Or with FastAPI dependency injection:
         @app.get("/users")
         def get_users(db: Session = Depends(get_db)):

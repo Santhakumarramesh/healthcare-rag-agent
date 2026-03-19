@@ -131,7 +131,7 @@ st.markdown("""
 if stats and "recent_queries" in stats:
     # Filter for low confidence or emergency queries
     flagged = [q for q in stats["recent_queries"] if q.get("confidence", 1) < 0.6 or q.get("is_emergency", False)]
-    
+
     if flagged:
         st.markdown("""
         <table class="values-table">
@@ -146,15 +146,15 @@ if stats and "recent_queries" in stats:
             </thead>
             <tbody>
         """, unsafe_allow_html=True)
-        
+
         for query in flagged[:10]:
             timestamp = query.get("timestamp", "")
             query_text = query.get("query", "")[:50] + "..."
             confidence = query.get("confidence", 0)
             flag_type = "Emergency" if query.get("is_emergency") else "Low Confidence"
-            
+
             conf_class = "value-abnormal" if confidence < 0.6 else "value-normal"
-            
+
             st.markdown(f"""
             <tr class="{conf_class}">
                 <td>{timestamp}</td>
@@ -164,7 +164,7 @@ if stats and "recent_queries" in stats:
                 <td><button style="padding: 0.25rem 0.75rem; background: var(--teal-primary); color: white; border: none; border-radius: 4px; cursor: pointer;">Review</button></td>
             </tr>
             """, unsafe_allow_html=True)
-        
+
         st.markdown("</tbody></table>", unsafe_allow_html=True)
     else:
         st.info("No flagged responses in recent queries")

@@ -12,7 +12,6 @@ Usage:
 
 import sys
 import os
-import subprocess
 
 def main():
     if len(sys.argv) < 2:

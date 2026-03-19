@@ -34,26 +34,26 @@ class AuditEventType(str, Enum):
 class AuditService:
     """
     Audit logging service for compliance and security.
-    
+
     Tracks all user actions and system events for:
     - HIPAA compliance
     - Security monitoring
     - User activity tracking
     - Forensic analysis
     """
-    
+
     def __init__(self, max_logs: int = 10000):
         """
         Initialize audit service.
-        
+
         Args:
             max_logs: Maximum number of logs to keep in memory
         """
         self.logs: deque = deque(maxlen=max_logs)
         self.max_logs = max_logs
-        
+
         logger.info(f"[AuditService] Initialized with max_logs={max_logs}")
-    
+
     def log_event(
         self,
         event_type: AuditEventType,
@@ -69,7 +69,7 @@ class AuditService:
     ):
         """
         Log an audit event.
-        
+
         Args:
             event_type: Type of event
             user_id: User ID performing action
@@ -95,16 +95,16 @@ class AuditService:
             "success": success,
             "error_message": error_message
         }
-        
+
         self.logs.append(event)
-        
+
         # Log to file for persistence
         log_level = "success" if success else "warning"
         getattr(logger, log_level)(
             f"[AuditLog] {event_type} | User: {user_email or 'anonymous'} | "
             f"Action: {action} | Success: {success}"
         )
-    
+
     def log_login(self, user_id: str, user_email: str, user_role: str, ip_address: Optional[str] = None):
         """Log user login"""
         self.log_event(
@@ -112,11 +112,11 @@ class AuditService:
             user_id=user_id,
             user_email=user_email,
             user_role=user_role,
-            action=f"User logged in",
+            action="User logged in",
             ip_address=ip_address,
             success=True
         )
-    
+
     def log_query(
         self,
         user_id: Optional[str],
@@ -139,7 +139,7 @@ class AuditService:
             },
             success=True
         )
-    
+
     def log_report_upload(
         self,
         user_id: Optional[str],
@@ -159,7 +159,7 @@ class AuditService:
             },
             success=True
         )
-    
+
     def log_alert(
         self,
         user_id: Optional[str],
@@ -179,7 +179,7 @@ class AuditService:
             },
             success=True
         )
-    
+
     def log_permission_denied(
         self,
         user_id: Optional[str],
@@ -202,7 +202,7 @@ class AuditService:
             success=False,
             error_message=f"User role '{user_role}' insufficient for action requiring '{required_role}'"
         )
-    
+
     def get_logs(
         self,
         user_id: Optional[str] = None,
@@ -213,47 +213,47 @@ class AuditService:
     ) -> List[Dict]:
         """
         Retrieve audit logs with filters.
-        
+
         Args:
             user_id: Filter by user ID
             event_type: Filter by event type
             start_time: Filter by start time
             end_time: Filter by end time
             limit: Maximum number of logs to return
-        
+
         Returns:
             List of matching audit logs
         """
         filtered_logs = list(self.logs)
-        
+
         # Apply filters
         if user_id:
             filtered_logs = [log for log in filtered_logs if log.get("user_id") == user_id]
-        
+
         if event_type:
             filtered_logs = [log for log in filtered_logs if log.get("event_type") == event_type]
-        
+
         if start_time:
             filtered_logs = [
                 log for log in filtered_logs
                 if datetime.fromisoformat(log["timestamp"]) >= start_time
             ]
-        
+
         if end_time:
             filtered_logs = [
                 log for log in filtered_logs
                 if datetime.fromisoformat(log["timestamp"]) <= end_time
             ]
-        
+
         # Return most recent first
         filtered_logs.reverse()
-        
+
         return filtered_logs[:limit]
-    
+
     def get_user_activity(self, user_id: str, limit: int = 50) -> List[Dict]:
         """Get recent activity for a user"""
         return self.get_logs(user_id=user_id, limit=limit)
-    
+
     def get_security_events(self, limit: int = 100) -> List[Dict]:
         """Get recent security-related events"""
         security_types = [
@@ -261,40 +261,40 @@ class AuditService:
             AuditEventType.SECURITY_VIOLATION,
             AuditEventType.USER_LOGIN
         ]
-        
+
         security_logs = []
         for log in reversed(list(self.logs)):
             if log.get("event_type") in security_types:
                 security_logs.append(log)
                 if len(security_logs) >= limit:
                     break
-        
+
         return security_logs
-    
+
     def get_statistics(self) -> Dict:
         """Get audit log statistics"""
         total_logs = len(self.logs)
-        
+
         # Count by event type
         by_event_type = {}
         for log in self.logs:
             event_type = log.get("event_type")
             by_event_type[event_type] = by_event_type.get(event_type, 0) + 1
-        
+
         # Count successes/failures
         successes = sum(1 for log in self.logs if log.get("success"))
         failures = total_logs - successes
-        
+
         # Count unique users
         unique_users = len(set(log.get("user_id") for log in self.logs if log.get("user_id")))
-        
+
         # Recent activity (last hour)
         one_hour_ago = datetime.now().timestamp() - 3600
         recent_logs = [
             log for log in self.logs
             if datetime.fromisoformat(log["timestamp"]).timestamp() > one_hour_ago
         ]
-        
+
         return {
             "total_logs": total_logs,
             "by_event_type": by_event_type,

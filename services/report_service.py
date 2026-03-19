@@ -14,7 +14,7 @@ from models.report_llm import ReportLLM
 
 class ReportService:
     """Service for analyzing medical reports."""
-    
+
     def __init__(self, llm: ReportLLM):
         self.llm = llm
         logger.info("[ReportService] Initialized")
@@ -65,15 +65,15 @@ class ReportService:
     def analyze(self, raw_text: str) -> Dict[str, Any]:
         """
         Analyze medical report text.
-        
+
         Args:
             raw_text: Raw report text
-            
+
         Returns:
             Structured analysis with summary, explanation, values, sources
         """
         logger.info(f"[ReportService] Analyzing report ({len(raw_text)} chars)")
-        
+
         # Extract structured values
         extracted_values = parse_report_text(raw_text)
         logger.info(f"[ReportService] Extracted {len(extracted_values)} values")
@@ -112,6 +112,6 @@ class ReportService:
             ),
             "report_type": llm_output.get("report_type", "Medical Report"),
         }
-        
+
         logger.success(f"[ReportService] Analysis complete (confidence: {confidence})")
         return result

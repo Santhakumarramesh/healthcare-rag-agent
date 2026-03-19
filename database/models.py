@@ -21,7 +21,7 @@ Base = declarative_base()
 class User(Base):
     """User accounts"""
     __tablename__ = "users"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(String(50), unique=True, index=True, nullable=False)
     email = Column(String(255), unique=True, index=True, nullable=False)
@@ -31,7 +31,7 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     last_login = Column(DateTime, nullable=True)
     active = Column(Boolean, default=True)
-    
+
     # Relationships
     sessions = relationship("Session", back_populates="user", cascade="all, delete-orphan")
     api_keys = relationship("APIKey", back_populates="user", cascade="all, delete-orphan")
@@ -40,14 +40,14 @@ class User(Base):
 class Session(Base):
     """User sessions and conversation history"""
     __tablename__ = "sessions"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     session_id = Column(String(100), unique=True, index=True, nullable=False)
     user_id = Column(String(50), ForeignKey("users.user_id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     last_activity = Column(DateTime, default=datetime.utcnow)
     active = Column(Boolean, default=True)
-    
+
     # Relationships
     user = relationship("User", back_populates="sessions")
     interactions = relationship("Interaction", back_populates="session", cascade="all, delete-orphan")
@@ -57,7 +57,7 @@ class Session(Base):
 class Interaction(Base):
     """Individual query/response pairs"""
     __tablename__ = "interactions"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     session_id = Column(String(100), ForeignKey("sessions.session_id"), nullable=False)
     query = Column(Text, nullable=False)
@@ -68,11 +68,11 @@ class Interaction(Base):
     sources_count = Column(Integer, default=0)
     has_alerts = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
-    
+
     # Store sources and reasoning as JSON
     sources = Column(JSON, nullable=True)
     reasoning_steps = Column(JSON, nullable=True)
-    
+
     # Relationships
     session = relationship("Session", back_populates="interactions")
 
@@ -80,17 +80,17 @@ class Interaction(Base):
 class Report(Base):
     """Uploaded medical reports"""
     __tablename__ = "reports"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     session_id = Column(String(100), ForeignKey("sessions.session_id"), nullable=False)
     filename = Column(String(255), nullable=False)
     file_type = Column(String(50), nullable=False)  # pdf, image, text
     file_size = Column(Integer, nullable=False)
     uploaded_at = Column(DateTime, default=datetime.utcnow)
-    
+
     # Extracted data as JSON
     extracted_data = Column(JSON, nullable=True)
-    
+
     # Relationships
     session = relationship("Session", back_populates="reports")
 
@@ -98,7 +98,7 @@ class Report(Base):
 class APIKey(Base):
     """API keys for external access"""
     __tablename__ = "api_keys"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     key = Column(String(100), unique=True, index=True, nullable=False)
     user_id = Column(String(50), ForeignKey("users.user_id"), nullable=False)
@@ -109,7 +109,7 @@ class APIKey(Base):
     total_requests = Column(Integer, default=0)
     last_used = Column(DateTime, nullable=True)
     active = Column(Boolean, default=True)
-    
+
     # Relationships
     user = relationship("User", back_populates="api_keys")
 
@@ -117,7 +117,7 @@ class APIKey(Base):
 class AuditLog(Base):
     """Audit trail for compliance"""
     __tablename__ = "audit_logs"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     timestamp = Column(DateTime, default=datetime.utcnow, index=True)
     event_type = Column(String(50), nullable=False, index=True)
@@ -129,7 +129,7 @@ class AuditLog(Base):
     ip_address = Column(String(50), nullable=True)
     success = Column(Boolean, default=True)
     error_message = Column(Text, nullable=True)
-    
+
     # Additional details as JSON
     details = Column(JSON, nullable=True)
 
@@ -137,7 +137,7 @@ class AuditLog(Base):
 class Alert(Base):
     """Clinical alerts triggered"""
     __tablename__ = "alerts"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     session_id = Column(String(100), nullable=False, index=True)
     user_id = Column(String(50), nullable=True, index=True)
@@ -147,6 +147,6 @@ class Alert(Base):
     action = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     acknowledged = Column(Boolean, default=False)
-    
+
     # Alert details as JSON
     details = Column(JSON, nullable=True)

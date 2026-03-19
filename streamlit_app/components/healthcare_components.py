@@ -19,7 +19,7 @@ def render_app_shell():
         layout="wide",
         initial_sidebar_state="expanded"
     )
-    
+
     # Load CSS
     load_clinical_css()
 
@@ -36,9 +36,9 @@ def render_sidebar_nav(current_page: str):
         </div>
     </div>
     """, unsafe_allow_html=True)
-    
+
     st.sidebar.markdown("<br>", unsafe_allow_html=True)
-    
+
     # Use Streamlit's built-in page_link for reliable multipage navigation
     from pathlib import Path
     base = Path(__file__).parent.parent
@@ -51,7 +51,7 @@ def render_sidebar_nav(current_page: str):
         ("Monitoring",       base / "pages" / "5_Monitoring.py"),
         ("Settings",         base / "pages" / "6_Settings.py"),
     ]
-    
+
     for page_name, page_path in pages:
         if page_name == current_page:
             st.sidebar.markdown(f"""
@@ -62,7 +62,7 @@ def render_sidebar_nav(current_page: str):
             </div>""", unsafe_allow_html=True)
         else:
             st.sidebar.page_link(str(page_path), label=page_name)
-    
+
     st.sidebar.markdown("<br><br>", unsafe_allow_html=True)
     render_sidebar_system_status()
 
@@ -75,11 +75,11 @@ def render_sidebar_system_status():
             System Status
         </div>
     """, unsafe_allow_html=True)
-    
+
     render_status_card("API", "Online", "success")
     render_status_card("Vector Store", "Ready", "success")
     render_status_card("Model", "GPT-4o-mini", "info")
-    
+
     st.sidebar.markdown("</div>", unsafe_allow_html=True)
 
 
@@ -110,7 +110,7 @@ def load_clinical_css():
 # CARD COMPONENTS
 # ============================================================================
 
-def render_hero_banner(title: str, subtitle: str, primary_cta: str, secondary_cta: str, 
+def render_hero_banner(title: str, subtitle: str, primary_cta: str, secondary_cta: str,
                        primary_action=None, secondary_action=None):
     """Render hero banner."""
     st.markdown(f"""
@@ -119,7 +119,7 @@ def render_hero_banner(title: str, subtitle: str, primary_cta: str, secondary_ct
         <div class="care-home-subtitle">{subtitle}</div>
     </div>
     """, unsafe_allow_html=True)
-    
+
     col1, col2, col3 = st.columns([1, 1, 2])
     with col1:
         if st.button(primary_cta, key="hero_primary", type="primary", use_container_width=True):
@@ -131,7 +131,7 @@ def render_hero_banner(title: str, subtitle: str, primary_cta: str, secondary_ct
                 secondary_action()
 
 
-def render_mode_card(title: str, description: str, icon: str, button_text: str, 
+def render_mode_card(title: str, description: str, icon: str, button_text: str,
                      button_key: str, action=None):
     """Render care mode card."""
     st.markdown(f"""
@@ -141,7 +141,7 @@ def render_mode_card(title: str, description: str, icon: str, button_text: str,
         <div class="mode-card-description">{description}</div>
     </div>
     """, unsafe_allow_html=True)
-    
+
     if st.button(button_text, key=button_key, use_container_width=True, type="primary"):
         if action:
             action()
@@ -168,7 +168,7 @@ def render_status_card(label: str, value: str, status: str = "info"):
         "info": "var(--text-primary)"
     }
     color = color_map.get(status, "var(--text-primary)")
-    
+
     st.sidebar.markdown(f"""
     <div class="status-card" style="margin-bottom: 0.5rem;">
         <div class="metric-label">{label}</div>
@@ -180,7 +180,7 @@ def render_status_card(label: str, value: str, status: str = "info"):
 def render_clinical_summary_card(summary: str, confidence: float, report_type: str = ""):
     """Render clinical summary card."""
     conf_class = "high" if confidence > 0.8 else "medium" if confidence > 0.6 else "low"
-    
+
     st.markdown(f"""
     <div class="answer-card">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
@@ -198,7 +198,7 @@ def render_trust_panel():
     st.markdown("""
     <div class="trust-panel">
         <div class="trust-panel-title">Why Trust This System</div>
-        
+
         <div class="trust-item">
             <div class="trust-item-icon">✓</div>
             <div class="trust-item-content">
@@ -208,7 +208,7 @@ def render_trust_panel():
                 </div>
             </div>
         </div>
-        
+
         <div class="trust-item">
             <div class="trust-item-icon">✓</div>
             <div class="trust-item-content">
@@ -218,7 +218,7 @@ def render_trust_panel():
                 </div>
             </div>
         </div>
-        
+
         <div class="trust-item">
             <div class="trust-item-icon">✓</div>
             <div class="trust-item-content">
@@ -228,7 +228,7 @@ def render_trust_panel():
                 </div>
             </div>
         </div>
-        
+
         <div class="trust-item">
             <div class="trust-item-icon">✓</div>
             <div class="trust-item-content">
@@ -250,7 +250,7 @@ def render_confidence_badge(confidence: float, size: str = "medium"):
     """Render confidence badge."""
     conf_class = "high" if confidence > 0.8 else "medium" if confidence > 0.6 else "low"
     size_class = "text-sm" if size == "small" else "text-base" if size == "medium" else "text-lg"
-    
+
     st.markdown(f"""
     <span class="confidence-badge confidence-{conf_class} {size_class}">
         {confidence:.0%} Confidence
@@ -262,7 +262,7 @@ def render_risk_alert_banner(level: str, message: str):
     """Render risk alert banner."""
     icons = {"high": "⚠️", "medium": "⚡", "low": "✓"}
     icon = icons.get(level, "ℹ️")
-    
+
     st.markdown(f"""
     <div class="risk-alert risk-alert-{level}">
         <div class="risk-alert-icon">{icon}</div>
@@ -281,7 +281,7 @@ def render_safety_notice(message: str = None):
     Always consult qualified healthcare professionals for medical decisions, diagnosis, or treatment.
     In case of emergency, call emergency services or go to the nearest emergency room.
     """
-    
+
     st.markdown(f"""
     <div class="safety-card">
         <div class="safety-title">⚠️ Safety Boundary</div>
@@ -295,7 +295,7 @@ def render_important_values_table(values: List[Dict[str, Any]]):
     if not values:
         st.info("No extracted values available")
         return
-    
+
     st.markdown("""
     <table class="values-table">
         <thead>
@@ -309,7 +309,7 @@ def render_important_values_table(values: List[Dict[str, Any]]):
         </thead>
         <tbody>
     """, unsafe_allow_html=True)
-    
+
     for val in values:
         # Support both schema formats
         test_name = val.get("test_name") or val.get("name", "N/A")
@@ -321,7 +321,7 @@ def render_important_values_table(values: List[Dict[str, Any]]):
         is_abnormal = val.get("is_abnormal", False) or flag in ("H", "L", "HIGH", "LOW", "ABNORMAL")
         row_class = "value-abnormal" if is_abnormal else "value-normal"
         status = f"⚠️ {flag}" if flag and is_abnormal else ("⚠️ Abnormal" if is_abnormal else "✓ Normal")
-        
+
         st.markdown(f"""
         <tr class="{row_class}">
             <td>{test_name}</td>
@@ -331,7 +331,7 @@ def render_important_values_table(values: List[Dict[str, Any]]):
             <td>{status}</td>
         </tr>
         """, unsafe_allow_html=True)
-    
+
     st.markdown("</tbody></table>", unsafe_allow_html=True)
 
 
@@ -344,7 +344,7 @@ def render_source_citation_card(source: Dict[str, Any], index: int):
     # /reports returns 'score'; /chat returns 'relevance_score'
     relevance = source.get("relevance_score") or source.get("score") or 0
     category = source.get("category", "Medical")
-    
+
     st.markdown(f"""
     <div class="evidence-source">
         <div class="evidence-header">
@@ -364,15 +364,15 @@ def render_check_in_timeline(updates: List[Dict[str, Any]]):
     if not updates:
         st.info("No check-ins available yet")
         return
-    
+
     st.markdown('<div class="timeline-container">', unsafe_allow_html=True)
-    
+
     for update in updates[-7:]:  # Last 7 check-ins
         date = update.get("date", "")
         trend = update.get("condition_trend", "Unknown")
         risk = update.get("risk_level", "low")
         summary = update.get("summary", "")
-        
+
         st.markdown(f"""
         <div class="timeline-item">
             <div class="timeline-date">{date}</div>
@@ -380,7 +380,7 @@ def render_check_in_timeline(updates: List[Dict[str, Any]]):
             <div class="timeline-content">{summary}</div>
         </div>
         """, unsafe_allow_html=True)
-    
+
     st.markdown('</div>', unsafe_allow_html=True)
 
 
@@ -388,7 +388,7 @@ def render_check_in_timeline(updates: List[Dict[str, Any]]):
 # INPUT COMPONENTS
 # ============================================================================
 
-def render_query_input_bar(placeholder: str = "Enter your medical question...", 
+def render_query_input_bar(placeholder: str = "Enter your medical question...",
                            key: str = "query_input"):
     """Render query input bar."""
     query = st.text_area(
@@ -398,11 +398,11 @@ def render_query_input_bar(placeholder: str = "Enter your medical question...",
         key=key,
         label_visibility="collapsed"
     )
-    
+
     col1, col2, col3 = st.columns([1, 1, 2])
     with col1:
         ask_btn = st.button("Ask Question", type="primary", use_container_width=True, key=f"{key}_btn")
-    
+
     return query, ask_btn
 
 
@@ -419,14 +419,14 @@ def render_upload_dropzone(key: str = "file_upload"):
         </div>
     </div>
     """, unsafe_allow_html=True)
-    
+
     uploaded_file = st.file_uploader(
         "Choose a file",
         type=["pdf", "jpg", "jpeg", "png", "txt"],
         key=key,
         label_visibility="collapsed"
     )
-    
+
     return uploaded_file
 
 
@@ -434,13 +434,13 @@ def render_prompt_suggestion_row(suggestions: List[str]):
     """Render prompt suggestion chips."""
     st.markdown('<div style="margin-bottom: 1.5rem;">', unsafe_allow_html=True)
     st.markdown('<div style="font-size: 0.875rem; color: var(--text-muted); margin-bottom: 0.5rem;">Suggested Questions:</div>', unsafe_allow_html=True)
-    
+
     cols = st.columns(len(suggestions))
     for idx, (col, suggestion) in enumerate(zip(cols, suggestions)):
         with col:
             if st.button(suggestion, key=f"suggestion_{idx}", use_container_width=True):
                 return suggestion
-    
+
     st.markdown('</div>', unsafe_allow_html=True)
     return None
 
@@ -452,16 +452,16 @@ def render_prompt_suggestion_row(suggestions: List[str]):
 def render_trend_chart(data: List[Dict[str, Any]], x_field: str, y_field: str, title: str):
     """Render trend chart."""
     import pandas as pd
-    
+
     if not data:
         st.info(f"No data available for {title}")
         return
-    
+
     df = pd.DataFrame(data)
     if x_field in df.columns and y_field in df.columns:
         df[x_field] = pd.to_datetime(df[x_field])
         chart_df = df[[x_field, y_field]].set_index(x_field)
-        
+
         st.markdown(f"**{title}**")
         st.line_chart(chart_df, height=300)
     else:
@@ -471,13 +471,13 @@ def render_trend_chart(data: List[Dict[str, Any]], x_field: str, y_field: str, t
 def render_distribution_chart(data: Dict[str, int], title: str):
     """Render distribution bar chart."""
     import pandas as pd
-    
+
     if not data:
         st.info(f"No data available for {title}")
         return
-    
+
     df = pd.DataFrame(list(data.items()), columns=["Category", "Count"])
-    
+
     st.markdown(f"**{title}**")
     st.bar_chart(df.set_index("Category"), height=300)
 

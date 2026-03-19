@@ -147,13 +147,11 @@ class DocumentIngestionPipeline:
 
     def _add_documents_to_index(self, docs: list) -> int:
         """Add LangChain Document objects to the existing FAISS index."""
-        from langchain.schema import Document
         texts = [d.page_content for d in docs]
         chunks = [{"text": t, "metadata": getattr(d, "metadata", {})} for d, t in zip(docs, texts)]
         embeddings = self.embed_texts(texts)
         if self.index_exists():
             idx, existing = self.load_index()
-            import numpy as np
             idx.add(embeddings)
             combined = existing + chunks
             self.save_index(idx, combined)
@@ -243,7 +241,8 @@ if __name__ == "__main__":
     faiss_file  = pipeline.index_path / "index.faiss"
     chunks_file = pipeline.index_path / "chunks.pkl"
     if faiss_file.exists() and chunks_file.exists():
-        import faiss as _faiss, pickle as _pickle
+        import faiss as _faiss
+        import pickle as _pickle
         idx = _faiss.read_index(str(faiss_file))
         with open(chunks_file, "rb") as fh:
             ch = _pickle.load(fh)

@@ -22,8 +22,7 @@ from components.healthcare_components import (
     render_clinical_summary_card,
     render_important_values_table,
     render_source_citation_card,
-    render_safety_notice,
-    render_confidence_badge
+    render_safety_notice
 )
 
 # Page config
@@ -65,9 +64,9 @@ with col_left:
         Upload Report
     </div>
     """, unsafe_allow_html=True)
-    
+
     uploaded_file = render_upload_dropzone(key="report_upload")
-    
+
     # File upload: analyze when file is selected
     st.markdown("<br>", unsafe_allow_html=True)
     analyze_btn = st.button(
@@ -110,7 +109,7 @@ with col_left:
             except Exception as e:
                 st.session_state.analysis_error = str(e)
                 st.error(f"Error: {str(e)}")
-    
+
     # Text input option
     with st.expander("Or paste report text"):
         report_text = st.text_area(
@@ -119,7 +118,7 @@ with col_left:
             placeholder="Paste lab report or medical document text...",
             key="report_text_input"
         )
-        
+
         if st.button("Analyze Text", type="primary", use_container_width=True):
             if report_text and len(report_text.strip()) >= 10:
                 with st.spinner("Analyzing report text..."):
@@ -152,7 +151,7 @@ with col_left:
                         st.error(f"Error: {str(e)}")
             elif report_text and len(report_text.strip()) < 10:
                 st.warning("Please enter at least 10 characters of report text.")
-    
+
     # Section 2: File Metadata (if uploaded)
     if st.session_state.current_report:
         st.markdown("<br>", unsafe_allow_html=True)
@@ -161,7 +160,7 @@ with col_left:
             Report Metadata
         </div>
         """, unsafe_allow_html=True)
-        
+
         st.markdown(f"""
         <div class="answer-card">
             <div style="margin-bottom: 0.5rem;"><strong>Type:</strong> {st.session_state.current_report.get('type', 'Unknown')}</div>
@@ -169,21 +168,21 @@ with col_left:
             <div style="margin-bottom: 0.5rem;"><strong>Status:</strong> <span style="color: var(--success);">✓ Analyzed</span></div>
         </div>
         """, unsafe_allow_html=True)
-    
+
     # Section 3: Extracted Values Summary
     if st.session_state.report_analysis:
         analysis = st.session_state.report_analysis
         extracted_values = analysis.get("extracted_values", [])
-        abnormal_count = len([v for v in extracted_values 
+        abnormal_count = len([v for v in extracted_values
                               if v.get("is_abnormal") or v.get("flag") in ("H","L","HIGH","LOW","ABNORMAL")])
-        
+
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown("""
         <div style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin-bottom: 1rem;">
             Extraction Summary
         </div>
         """, unsafe_allow_html=True)
-        
+
         col_s1, col_s2 = st.columns(2)
         with col_s1:
             st.markdown(f"""
@@ -192,7 +191,7 @@ with col_left:
                 <div class="metric-value">{len(extracted_values)}</div>
             </div>
             """, unsafe_allow_html=True)
-        
+
         with col_s2:
             st.markdown(f"""
             <div class="metric-card">
@@ -231,14 +230,14 @@ with col_right:
             Clinical Analysis
         </div>
         """, unsafe_allow_html=True)
-        
+
         summary = analysis.get("summary", "No summary available")
         confidence = analysis.get("confidence", 0)
         report_type = analysis.get("report_type", "Medical Report")
-        
+
         render_clinical_summary_card(summary, confidence, report_type)
-        
-        
+
+
         # Section 5: Simple Explanation
         if analysis.get("simple_explanation"):
             st.markdown("<br>", unsafe_allow_html=True)
@@ -247,7 +246,7 @@ with col_right:
                 Plain Language Explanation
             </div>
             """, unsafe_allow_html=True)
-            
+
             st.markdown(f"""
             <div class="answer-card">
                 <div style="color: var(--text-secondary); line-height: 1.7;">
@@ -255,7 +254,7 @@ with col_right:
                 </div>
             </div>
             """, unsafe_allow_html=True)
-        
+
         # Section 6: Important Values Table
         if analysis.get("extracted_values"):
             st.markdown("<br>", unsafe_allow_html=True)
@@ -264,9 +263,9 @@ with col_right:
                 Important Values
             </div>
             """, unsafe_allow_html=True)
-            
+
             render_important_values_table(analysis["extracted_values"])
-        
+
         # Section 7: Possible Concerns (API returns 'potential_concerns')
         concerns = analysis.get("concerns") or analysis.get("potential_concerns", [])
         if concerns:
@@ -276,7 +275,7 @@ with col_right:
                 Possible Concerns
             </div>
             """, unsafe_allow_html=True)
-            
+
             st.markdown('<div class="findings-grid">', unsafe_allow_html=True)
             for concern in concerns:
                 st.markdown(f"""
@@ -285,7 +284,7 @@ with col_right:
                 </div>
                 """, unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
-        
+
         # Section 8: Suggested Next Steps
         if analysis.get("next_steps"):
             st.markdown("<br>", unsafe_allow_html=True)
@@ -294,7 +293,7 @@ with col_right:
                 Suggested Next Steps
             </div>
             """, unsafe_allow_html=True)
-            
+
             st.markdown('<div class="findings-grid">', unsafe_allow_html=True)
             for step in analysis["next_steps"]:
                 st.markdown(f"""
@@ -303,7 +302,7 @@ with col_right:
                 </div>
                 """, unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
-        
+
         # Section 9: Evidence / Sources
         if analysis.get("sources"):
             st.markdown("<br>", unsafe_allow_html=True)
@@ -312,16 +311,16 @@ with col_right:
                 Evidence Sources
             </div>
             """, unsafe_allow_html=True)
-            
+
             st.markdown('<div class="evidence-container">', unsafe_allow_html=True)
             for idx, source in enumerate(analysis["sources"][:5], 1):
                 render_source_citation_card(source, idx)
             st.markdown('</div>', unsafe_allow_html=True)
-        
+
         # Section 10: Safety Note
         st.markdown("<br>", unsafe_allow_html=True)
         render_safety_notice()
-    
+
     else:
         # Empty state
         st.markdown("""

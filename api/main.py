@@ -11,7 +11,7 @@ import uuid
 
 import json
 import asyncio
-from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File, Form, Request
+from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -363,7 +363,7 @@ class ChatResponse(BaseModel):
     safety_note: str = "This assistant does not replace professional medical advice."
     confidence: float  # Unified confidence score
     sources: List[dict]
-    
+
     # Legacy/additional fields
     response: Optional[str] = None  # Deprecated, use 'answer'
     intent: str
@@ -438,7 +438,7 @@ async def get_conversation_history(session_id: str):
     memory_service = get_memory_service()
     history = memory_service.get_conversation_history(session_id)
     stats = memory_service.get_session_stats(session_id)
-    
+
     return {
         "session_id": session_id,
         "history": history,
@@ -461,7 +461,7 @@ async def get_monitoring_stats():
     stats = monitoring_service.get_real_time_stats()
     time_series = monitoring_service.get_time_series_data(hours=24)
     query_type_data = monitoring_service.get_query_type_chart_data()
-    
+
     return {
         "stats": stats,
         "time_series": time_series,
@@ -514,7 +514,7 @@ async def chat(request: ChatRequest):
             request.query,
             context={"has_previous_interaction": session_stats.get("interaction_count", 0) > 0}
         )
-        
+
         # 2. HANDLE EMERGENCY
         if route_info["is_urgent"]:
             emergency_response = {
@@ -537,7 +537,7 @@ async def chat(request: ChatRequest):
                 "safety_note": "EMERGENCY: Seek immediate medical attention. This is not a substitute for emergency care.",
                 "confidence": 1.0,
                 "sources": [],
-                
+
                 # Legacy fields
                 "response": "EMERGENCY DETECTED - This appears to be an urgent medical situation. Call 911 immediately or go to the nearest emergency room.",
                 "intent": "emergency",
@@ -553,15 +553,15 @@ async def chat(request: ChatRequest):
             }
             EMERGENCY_COUNT.inc()
             return ChatResponse(**emergency_response)
-        
+
         # 3. GET CONVERSATION CONTEXT
         conversation_context = memory_service.get_recent_context(client_id, limit=3)
-        
+
         # 4. ENHANCE QUERY WITH CONTEXT
         enhanced_query = request.query
         if conversation_context:
             enhanced_query = f"{conversation_context}\n\nCurrent question: {request.query}"
-        
+
         # 5. RUN RAG PIPELINE
         result = await current_pipeline.run(enhanced_query)
         latency_ms = (time.time() - start_time) * 1000
@@ -589,7 +589,7 @@ async def chat(request: ChatRequest):
         retrieval_confidence = result.get("retrieval_confidence", 0.0)
         quality_score = result.get("quality_score", 0.0)
         grounding_score = 1.0 - hallucination_score
-        
+
         enhanced_confidence = (
             0.4 * retrieval_confidence +
             0.4 * grounding_score +
@@ -599,7 +599,7 @@ async def chat(request: ChatRequest):
         # 9. CHECK FOR CLINICAL ALERTS
         alert_engine = get_alert_engine()
         clinical_alerts = alert_engine.check_query(request.query)
-        
+
         # Log alerts if any
         audit_service = get_audit_service()
         for alert in clinical_alerts:
@@ -609,7 +609,7 @@ async def chat(request: ChatRequest):
                 severity=alert["severity"],
                 message=alert["message"]
             )
-        
+
         # 10. RUN STRUCTURED REASONING AGENT
         # Convert raw sources to RetrievedChunk format
         from agents.structured_reasoning_agent import RetrievedChunk, get_structured_reasoning_agent
@@ -617,14 +617,14 @@ async def chat(request: ChatRequest):
         for source in raw_sources[:10]:
             content = getattr(source, 'page_content', getattr(source, 'text', ''))
             metadata = getattr(source, 'metadata', {})
-            
+
             retrieved_chunks.append(RetrievedChunk(
                 source=metadata.get('source', 'Unknown'),
                 content=content,
                 score=metadata.get('score', 0.5),
                 category=metadata.get('category', None)
             ))
-        
+
         # Get structured reasoning agent (with robust fallback)
         answer = result.get("response", "")
         key_insights = []
@@ -632,7 +632,7 @@ async def chat(request: ChatRequest):
         next_steps = ["Consult a healthcare professional for personalized advice"]
         safety_note = "This assistant does not replace professional medical advice."
         reasoning_steps = []
-        
+
         # Try structured reasoning if API key is available
         if config.OPENAI_API_KEY and retrieved_chunks:
             try:
@@ -640,14 +640,14 @@ async def chat(request: ChatRequest):
                     api_key=config.OPENAI_API_KEY,
                     model=config.OPENAI_MODEL
                 )
-                
+
                 # Run structured reasoning
                 reasoning_result = structured_agent.run(
                     query=request.query,
                     route=route_info["type"],
                     retrieved_chunks=retrieved_chunks
                 )
-                
+
                 # Extract structured fields
                 answer = reasoning_result.answer
                 key_insights = reasoning_result.key_insights
@@ -655,19 +655,19 @@ async def chat(request: ChatRequest):
                 next_steps = reasoning_result.next_steps
                 safety_note = reasoning_result.safety_note
                 structured_confidence = reasoning_result.confidence
-                
+
                 # Use structured confidence if higher
                 enhanced_confidence = max(enhanced_confidence, structured_confidence)
-                
+
                 # Legacy reasoning steps for backward compatibility
                 reasoning_steps = [
                     {"step": "Evidence Analysis", "result": f"Analyzed {len(retrieved_chunks)} sources"},
                     {"step": "Insight Generation", "result": f"Generated {len(key_insights)} key insights"},
                     {"step": "Safety Check", "result": safety_note}
                 ]
-                
+
                 logger.info(f"Structured reasoning complete: {len(key_insights)} insights, {len(next_steps)} steps")
-                
+
             except Exception as e:
                 logger.warning(f"Structured reasoning failed: {e} - using fallback")
                 # Keep fallback values already set above
@@ -676,7 +676,7 @@ async def chat(request: ChatRequest):
         REQUEST_COUNT.labels(intent=route_info["type"]).inc()
         REQUEST_LATENCY.observe(latency_ms / 1000)
         QUALITY_SCORE_HIST.observe(enhanced_confidence)
-        
+
         # Record in monitoring service
         monitoring_service = get_monitoring_service()
         monitoring_service.record_query(
@@ -686,7 +686,7 @@ async def chat(request: ChatRequest):
             sources_count=len(formatted_citations),
             success=True
         )
-        
+
         # Log query in audit service (already loaded earlier in function)
         audit_service.log_query(
             user_id=client_id,
@@ -714,7 +714,7 @@ async def chat(request: ChatRequest):
             "safety_note": safety_note,
             "confidence": round(enhanced_confidence, 3),
             "sources": formatted_citations,
-            
+
             # Legacy fields (for backward compatibility)
             "response": answer,  # Duplicate for old clients
             "intent": route_info["type"],
@@ -723,7 +723,7 @@ async def chat(request: ChatRequest):
             "quality_score": round(quality_score, 3),
             "hallucination_risk": result.get("hallucination_risk", "low"),
             "evaluation_notes": result.get("evaluation_notes", ""),
-            "agent_trace": result.get("agent_trace", []) + [f"Routed as: {route_info['type']}"] + ([f"Structured reasoning applied"] if key_insights else []) + ([f"{len(clinical_alerts)} clinical alert(s) detected"] if clinical_alerts else []),
+            "agent_trace": result.get("agent_trace", []) + [f"Routed as: {route_info['type']}"] + (["Structured reasoning applied"] if key_insights else []) + ([f"{len(clinical_alerts)} clinical alert(s) detected"] if clinical_alerts else []),
             "latency_ms": round(latency_ms, 2),
             "query_type": route_info["type"],
             "routing_confidence": route_info["confidence"],
@@ -764,7 +764,7 @@ async def chat_stream(request: ChatRequest):
                 elif isinstance(chunk, dict) and chunk.get("type") == "metadata":
                     # Final metadata chunk
                     yield f"data: {json.dumps(chunk)}\n\n"
-                
+
                 await asyncio.sleep(0.01)  # Tiny sleep to ensure smooth streaming
         except Exception as e:
             logger.error(f"Streaming error: {e}")
@@ -936,7 +936,9 @@ async def ingest_text(req: IngestTextRequest):
 @app.post("/ingest/file", response_model=IngestResponse, tags=["Knowledge Base"])
 async def ingest_file(file: UploadFile = File(...)):
     """Upload a PDF or text file to the shared knowledge base."""
-    import tempfile, shutil, os
+    import tempfile
+    import shutil
+    import os
     suffix = Path(file.filename or "upload").suffix or ".txt"
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         shutil.copyfileobj(file.file, tmp)
@@ -1089,7 +1091,7 @@ async def submit_feedback(req: FeedbackRequest):
         )
         return FeedbackResponse(
             status="ok",
-            message=f"Feedback recorded — thank you for helping us improve!",
+            message="Feedback recorded — thank you for helping us improve!",
             interaction_id=req.interaction_id,
         )
     except Exception as exc:

@@ -18,7 +18,7 @@ import re
 # langchain-nvidia-ai-endpoints pulls CUDA packages — not installed on Render.
 # Both are gracefully optional; OpenAI embeddings are used instead.
 try:
-    from sentence_transformers import SentenceTransformer, CrossEncoder
+    from sentence_transformers import SentenceTransformer
     _SENTENCE_TRANSFORMERS_AVAILABLE = True
 except ImportError:
     _SENTENCE_TRANSFORMERS_AVAILABLE = False
@@ -179,7 +179,7 @@ class HybridRetriever:
         """Stage 1: Fast approximate nearest neighbor search (Local)."""
         if not self.index:
             return []
-            
+
         scores, indices = self.index.search(query_embedding, top_k)
         results = []
         for score, idx in zip(scores[0], indices[0]):
@@ -196,11 +196,11 @@ class HybridRetriever:
         """Stage 1: Keyword search via BM25."""
         if not self.bm25:
             return []
-            
+
         tokenized_query = self._tokenize(query)
         scores = self.bm25.get_scores(tokenized_query)
         top_indices = np.argsort(scores)[::-1][:top_k]
-        
+
         results = []
         for idx in top_indices:
             results.append(RetrievedChunk(
@@ -215,24 +215,24 @@ class HybridRetriever:
         fused_scores = {}
         # Track original objects by text to avoid complex metadata merging
         text_to_obj = {}
-        
+
         for rank, res in enumerate(vector_results):
             text_to_obj[res.text] = res
             fused_scores[res.text] = fused_scores.get(res.text, 0) + 1.0 / (k + rank + 1)
-            
+
         for rank, res in enumerate(keyword_results):
             text_to_obj[res.text] = res
             fused_scores[res.text] = fused_scores.get(res.text, 0) + 1.0 / (k + rank + 1)
-            
+
         # Re-sort and take top candidates
         sorted_texts = sorted(fused_scores.items(), key=lambda x: x[1], reverse=True)
-        
+
         final_results = []
         for text, score in sorted_texts:
             obj = text_to_obj[text]
             obj.score = score  # Overwrite with RRF score
             final_results.append(obj)
-            
+
         return final_results
 
     def pinecone_search(self, query: str, top_k: int) -> list:
@@ -244,13 +244,13 @@ class HybridRetriever:
             embedding = self._openai_embedder.embed_query(query)
         else:
             embedding = self.embedder.encode(query).tolist()
-        
+
         response = self.pinecone_index.query(
             vector=embedding,
             top_k=top_k,
             include_metadata=True
         )
-        
+
         results = []
         for match in response["matches"]:
             metadata = match["metadata"]
@@ -267,31 +267,31 @@ class HybridRetriever:
         """Stage 2: Rerank candidates using Cross-Encoder or NVIDIA NIM."""
         if not chunks:
             return []
-            
+
         if self.nvidia_reranker:
             logger.info(f"Reranking {len(chunks)} chunks with NVIDIA NIM...")
             # NVIDIARerank expects docs as a list of strings or dicts
             texts = [c.text for c in chunks]
-            
+
             try:
                 # The NVIDIARerank.rerank method returns a list of Document objects
                 # with relevance_score in metadata. We need to map this back to RetrievedChunk.
                 reranked_docs = self.nvidia_reranker.rerank(query=query, documents=texts, top_n=top_k)
-                
+
                 # Create a mapping from original text to its chunk object
                 text_to_chunk_map = {chunk.text: chunk for chunk in chunks}
-                
+
                 final_reranked_chunks = []
                 for doc in reranked_docs:
                     original_chunk = text_to_chunk_map.get(doc.page_content)
                     if original_chunk:
                         original_chunk.rerank_score = doc.metadata.get("relevance_score", 0.0)
                         final_reranked_chunks.append(original_chunk)
-                
+
                 # Sort by rerank_score in descending order (NVIDIA reranker might not return them sorted)
                 final_reranked_chunks.sort(key=lambda x: x.rerank_score, reverse=True)
                 return final_reranked_chunks
-                
+
             except Exception as e:
                 logger.error(f"NVIDIA Rerank failed: {e}. Falling back to local reranker or top Stage 1 results.")
                 # If NVIDIA reranker fails, try local if available, otherwise return top_k from stage 1
@@ -305,7 +305,7 @@ class HybridRetriever:
         # Local Cross-Encoder Rerank
         if self.rerank_model:
             return self._local_rerank(query, chunks, top_k)
-            
+
         # Fallback if no reranker is configured or available
         logger.warning("No reranker configured or available. Returning top Stage 1 results without reranking.")
         return chunks[:top_k]
@@ -316,10 +316,10 @@ class HybridRetriever:
         sentence_pairs = [[query, chunk.text] for chunk in chunks]
         # n_jobs=1 disables joblib multiprocessing — prevents semaphore crash on Python 3.13 + uvicorn
         scores = self.rerank_model.predict(sentence_pairs, num_workers=0)
-        
+
         for i, score in enumerate(scores):
             chunks[i].rerank_score = float(score)
-            
+
         return sorted(chunks, key=lambda x: x.rerank_score, reverse=True)[:top_k]
 
     def retrieve(self, query: str, top_k: int = None, rerank_top_k: int = None) -> list:
@@ -337,10 +337,10 @@ class HybridRetriever:
             query_embedding = self.embed_query(query)
             vector_candidates = self.faiss_search(query_embedding, top_k=top_k * 3)
             keyword_candidates = self.bm25_search(query, top_k=top_k * 3)
-            
+
             candidates = self.reciprocal_rank_fusion(
-                vector_candidates, 
-                keyword_candidates, 
+                vector_candidates,
+                keyword_candidates,
                 k=config.RRF_K
             )
             logger.info(f"Hybrid RRF returned {len(candidates)} fused candidates")
@@ -349,7 +349,7 @@ class HybridRetriever:
         else:
             logger.error("No active vector store for retrieval.")
             return []
-            
+
         logger.debug(f"Stage 1 returned {len(candidates)} candidates")
 
         # Stage 2: Rerank

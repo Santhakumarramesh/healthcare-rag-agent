@@ -6,7 +6,6 @@ from typing import Dict
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 from loguru import logger
-import json
 
 
 HALLUCINATION_DETECTION_PROMPT = """You are an expert assistant helping to check if statements are based on the context.
@@ -43,38 +42,38 @@ Statement: {statement}
 async def detect_hallucination(context: str, response: str, api_key: str) -> Dict[str, float]:
     """
     Detect hallucinations in RAG response using LLM-based scoring.
-    
+
     Args:
         context: Retrieved context used to generate response
         response: Generated response to evaluate
         api_key: OpenAI API key
-        
+
     Returns:
         Dict with 'score' (0-1, higher = more likely hallucinated) and 'risk_level'
     """
     if not context or not response:
         return {"score": 0.0, "risk_level": "unknown"}
-    
+
     try:
         llm = ChatOpenAI(
             model="gpt-4o-mini",
             temperature=0.0,
             openai_api_key=api_key,
         )
-        
+
         prompt = HALLUCINATION_DETECTION_PROMPT.format(
             context=context[:2000],  # Limit context to avoid token limits
             statement=response[:1000],  # Limit response
         )
-        
+
         messages = [
             SystemMessage(content="You are a hallucination detection expert."),
             HumanMessage(content=prompt)
         ]
-        
+
         result = await llm.ainvoke(messages)
         score_text = result.content.strip()
-        
+
         # Parse score
         try:
             score = float(score_text)
@@ -82,7 +81,7 @@ async def detect_hallucination(context: str, response: str, api_key: str) -> Dic
         except ValueError:
             logger.warning(f"Could not parse hallucination score: {score_text}")
             score = 0.5  # Default to medium risk
-        
+
         # Determine risk level
         if score < 0.3:
             risk_level = "low"
@@ -90,14 +89,14 @@ async def detect_hallucination(context: str, response: str, api_key: str) -> Dic
             risk_level = "medium"
         else:
             risk_level = "high"
-        
+
         logger.info(f"Hallucination detection: score={score:.2f}, risk={risk_level}")
-        
+
         return {
             "score": round(score, 3),
             "risk_level": risk_level,
         }
-        
+
     except Exception as e:
         logger.error(f"Hallucination detection failed: {e}")
         return {"score": 0.0, "risk_level": "unknown"}

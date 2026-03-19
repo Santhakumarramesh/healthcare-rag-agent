@@ -70,9 +70,9 @@ Return ONLY valid JSON with this exact schema (no markdown fences, no extra text
 CRITICAL RULES:
 1. Extract the REAL patient name, date, and provider from the document - DO NOT use placeholder names like "John Smith" or "Jane Doe"
 2. If you see table data, parse it carefully - lab values are often in tables with columns like: Test Name | Result | Reference Range | Units
-3. For lab status: 
+3. For lab status:
    - HIGH = result above reference range upper limit
-   - LOW = result below reference range lower limit  
+   - LOW = result below reference range lower limit
    - CRITICAL = dangerously out of range (typically marked with flags like *, H, L, or CRITICAL)
    - NORMAL = within reference range
    - UNKNOWN = no reference range provided
@@ -211,17 +211,17 @@ async def generate_health_recommendations(extraction_result: dict) -> str:
     Uses GPT to provide dietary advice, lifestyle suggestions, and action plans.
     """
     llm = _llm(temperature=0.3)  # Slightly higher temp for more natural recommendations
-    
+
     # Build a structured summary of the results for GPT
     patient_info = extraction_result.get("patient_info", {})
     lab_values = extraction_result.get("lab_values", [])
     diagnoses = extraction_result.get("diagnoses", [])
     medications = extraction_result.get("medications", [])
     abnormal_flags = extraction_result.get("abnormal_flags", [])
-    
+
     # Create a readable summary
     summary_parts = []
-    
+
     # Patient info
     if patient_info:
         summary_parts.append("PATIENT INFORMATION:")
@@ -230,7 +230,7 @@ async def generate_health_recommendations(extraction_result: dict) -> str:
         if patient_info.get("dob") and patient_info["dob"] != "Not specified":
             summary_parts.append(f"- Age/DOB: {patient_info['dob']}")
         summary_parts.append("")
-    
+
     # Lab values
     if lab_values:
         summary_parts.append("LAB RESULTS:")
@@ -241,21 +241,21 @@ async def generate_health_recommendations(extraction_result: dict) -> str:
                 f"(Normal: {lab.get('normal_range', 'N/A')}) - Status: {lab.get('status')}"
             )
         summary_parts.append("")
-    
+
     # Abnormal flags
     if abnormal_flags:
         summary_parts.append("ABNORMAL FINDINGS:")
         for flag in abnormal_flags:
             summary_parts.append(f"- {flag}")
         summary_parts.append("")
-    
+
     # Diagnoses
     if diagnoses:
         summary_parts.append("DIAGNOSES:")
         for dx in diagnoses:
             summary_parts.append(f"- {dx}")
         summary_parts.append("")
-    
+
     # Medications
     if medications:
         summary_parts.append("CURRENT MEDICATIONS:")
@@ -265,20 +265,20 @@ async def generate_health_recommendations(extraction_result: dict) -> str:
             else:
                 summary_parts.append(f"- {med}")
         summary_parts.append("")
-    
+
     summary = "\n".join(summary_parts)
-    
+
     if not summary.strip():
         return (
             "Unable to generate recommendations - no lab values found in the report.\n\n"
             "⚕️ Please upload a medical report with lab results to receive personalized recommendations."
         )
-    
+
     messages = [
         SystemMessage(content=HEALTH_RECOMMENDATIONS_PROMPT),
         HumanMessage(content=f"Please analyze these lab results and provide personalized health recommendations:\n\n{summary}"),
     ]
-    
+
     try:
         response = await llm.ainvoke(messages)
         logger.info("[RecordsAgent] Health recommendations generated successfully.")

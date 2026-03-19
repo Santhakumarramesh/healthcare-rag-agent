@@ -8,7 +8,7 @@ import io
 import threading
 import sys
 from pathlib import Path
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import faiss
 import numpy as np
@@ -88,9 +88,9 @@ class PersonalDocumentStore:
         """
         import pdfplumber
         from pypdf import PdfReader
-        
+
         full_text = ""
-        
+
         # Strategy 1: Try pdfplumber first (better for tables and layouts)
         try:
             with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
@@ -98,7 +98,7 @@ class PersonalDocumentStore:
                 for page in pdf.pages:
                     # Extract text
                     text = page.extract_text()
-                    
+
                     # Extract tables separately
                     tables = page.extract_tables()
                     if tables:
@@ -109,16 +109,16 @@ class PersonalDocumentStore:
                                 for row in table if row
                             ])
                             text = (text or "") + "\n\nTable:\n" + table_text
-                    
+
                     if text and text.strip():
                         pages_text.append(text)
-                
+
                 if pages_text:
                     full_text = "\n\n=== PAGE BREAK ===\n\n".join(pages_text)
                     logger.info(f"[PersonalStore] Extracted {len(pages_text)} pages using pdfplumber")
         except Exception as e:
             logger.warning(f"[PersonalStore] pdfplumber failed: {e}, trying pypdf...")
-        
+
         # Strategy 2: Fall back to pypdf if pdfplumber failed
         if not full_text:
             try:
@@ -128,29 +128,29 @@ class PersonalDocumentStore:
                     text = p.extract_text()
                     if text and text.strip():
                         pages.append(text)
-                
+
                 if pages:
                     full_text = "\n\n=== PAGE BREAK ===\n\n".join(pages)
                     logger.info(f"[PersonalStore] Extracted {len(pages)} pages using pypdf")
             except Exception as e:
                 logger.warning(f"[PersonalStore] pypdf failed: {e}")
-        
+
         # Strategy 3: Try OCR for image-based PDFs (scanned documents) - OPTIONAL
         if not full_text or len(full_text.strip()) < 100:
             try:
                 import pytesseract
                 from pdf2image import convert_from_bytes
-                
+
                 logger.info("[PersonalStore] Attempting OCR extraction...")
                 images = convert_from_bytes(pdf_bytes, dpi=300, fmt='png')
                 ocr_pages = []
-                
+
                 for i, img in enumerate(images):
                     # Use pytesseract for OCR
                     text = pytesseract.image_to_string(img, lang='eng', config='--psm 6')
                     if text and text.strip():
                         ocr_pages.append(f"[Page {i+1} - OCR]\n{text}")
-                
+
                 if ocr_pages:
                     full_text = "\n\n=== PAGE BREAK ===\n\n".join(ocr_pages)
                     logger.info(f"[PersonalStore] Extracted {len(ocr_pages)} pages using OCR")
@@ -158,14 +158,14 @@ class PersonalDocumentStore:
                 logger.warning(f"[PersonalStore] OCR not available: {e}. Install tesseract-ocr for scanned PDF support.")
             except Exception as e:
                 logger.warning(f"[PersonalStore] OCR extraction failed: {e}. Document may be image-based.")
-        
+
         # Final check
         if not full_text or len(full_text.strip()) < 50:
             raise ValueError(
                 f"Could not extract meaningful text from '{filename}'. "
                 "The PDF may be encrypted, corrupted, or contain only images without OCR support."
             )
-        
+
         logger.info(f"[PersonalStore] Final extracted text length: {len(full_text)} chars")
         return self._add_text_internal(session_id, full_text, filename)
 

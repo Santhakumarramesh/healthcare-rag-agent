@@ -25,7 +25,7 @@ from loguru import logger
 
 sys.path.append(str(Path(__file__).parent.parent))
 from utils.config import config
-from vectorstore.retriever import HybridRetriever, RetrievedChunk
+from vectorstore.retriever import HybridRetriever
 
 
 # ─── Enums ────────────────────────────────────────────────────────────────────
@@ -247,7 +247,7 @@ async def web_search_agent(state: AgentState) -> AgentState:
     """Agent 3b: Real-time search fallback for recent events."""
     query = state.get("reformulated_query") or state["user_query"]
     logger.info(f"[WEB_SEARCH] Searching for: {query}")
-    
+
     if not config.TAVILY_API_KEY or config.TAVILY_API_KEY == "tvly-your-key-here":
         logger.warning("Tavily API key not found. Skipping web search.")
         return {**state, "context": "Error: Web search required but API key missing.", "agent_trace": ["WEB_SEARCH: error - missing key"]}
@@ -257,15 +257,15 @@ async def web_search_agent(state: AgentState) -> AgentState:
         tavily = TavilyClient(api_key=config.TAVILY_API_KEY)
         # Search for medical news/recalls
         response = tavily.search(query=query, search_depth="advanced", max_results=5)
-        
+
         context_parts = []
         sources = []
         for result in response.get("results", []):
             context_parts.append(f"Source: {result['url']}\nContent: {result['content']}")
             sources.append({"source": result['url'], "title": result.get("title", "Web Result")})
-            
+
         full_context = "\n\n---\n\n".join(context_parts)
-        
+
         return {
             **state,
             "context": full_context,
@@ -497,10 +497,10 @@ async def evaluator_agent(state: AgentState) -> AgentState:
         eval_response = await llm.ainvoke(messages)
         cleaned_content = eval_response.content.strip()
         eval_data = json.loads(cleaned_content)
-        
+
         quality_score = eval_data.get("quality_score", 0.0)
         decision = eval_data.get("decision", "FINISH")
-        
+
         # Enforce max 1 retry via logic
         if state.get("retry_count", 0) >= 1:
             decision = "FINISH"
@@ -576,7 +576,7 @@ def build_rag_graph() -> StateGraph:
     )
     workflow.add_edge("retriever", "responder")
     workflow.add_edge("web_search", "responder")
-    
+
     # Conditional edge from Evaluator (Self-Correction Loop)
     workflow.add_conditional_edges(
         "evaluator",
@@ -658,7 +658,7 @@ class HealthcareRAGPipeline:
 
         async for event in self.graph.astream_events(initial_state, version="v2"):
             kind = event["event"]
-            
+
             # Update state tracker as nodes finish (important for capturing final metadata)
             if kind == "on_chain_end":
                 if "output" in event["data"] and isinstance(event["data"]["output"], dict):
@@ -684,7 +684,7 @@ class HealthcareRAGPipeline:
                 "intent": final_state.get("intent", "medical_faq"),
                 "is_emergency": final_state.get("is_emergency", False),
                 "retrieved_chunks": [
-                    {"text": c.text, "metadata": c.metadata, "score": c.score} 
+                    {"text": c.text, "metadata": c.metadata, "score": c.score}
                     for c in final_state.get("retrieved_chunks", [])
                     if hasattr(c, "text")
                 ],

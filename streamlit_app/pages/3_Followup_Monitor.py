@@ -7,7 +7,6 @@ Three vertical sections:
 3. Trend & History
 """
 import streamlit as st
-import pandas as pd
 from datetime import date, datetime
 import sys
 from pathlib import Path
@@ -164,42 +163,42 @@ col_profile_left, col_profile_right = st.columns([1.5, 1], gap="large")
 
 with col_profile_left:
     st.markdown('<div class="answer-card">', unsafe_allow_html=True)
-    
+
     with st.form("profile_form", clear_on_submit=False):
         condition_name = st.text_input(
             "Condition Name",
             value=st.session_state.followup_profile.get("condition_name", ""),
             placeholder="Example: Heart Failure, COPD, Post-Surgery Recovery"
         )
-        
+
         diagnosis_date = st.date_input(
             "Diagnosis or Monitoring Start Date",
             value=st.session_state.followup_profile.get("diagnosis_date") or date.today()
         )
-        
+
         primary_symptoms = st.text_area(
             "Primary Symptoms / Concerns",
             value=st.session_state.followup_profile.get("primary_symptoms", ""),
             height=100,
             placeholder="Example: shortness of breath, fatigue, swelling, fever"
         )
-        
+
         current_medications = st.text_area(
             "Current Medications",
             value=st.session_state.followup_profile.get("current_medications", ""),
             height=90,
             placeholder="List medications and dosages"
         )
-        
+
         doctor_notes = st.text_area(
             "Doctor Instructions / Special Watchouts",
             value=st.session_state.followup_profile.get("doctor_notes", ""),
             height=90,
             placeholder="Example: watch for chest pain, oxygen drop, or persistent fever"
         )
-        
+
         submitted = st.form_submit_button("Save Profile", use_container_width=True, type="primary")
-        
+
         if submitted:
             st.session_state.followup_profile = {
                 "condition_name": condition_name,
@@ -209,13 +208,13 @@ with col_profile_left:
                 "doctor_notes": doctor_notes,
                 "is_initialized": True,
             }
-            
+
             if "active_followup_cases" in st.session_state:
                 st.session_state.active_followup_cases = 1
-            
+
             st.success("✓ Profile saved successfully")
             st.rerun()
-    
+
     st.markdown('</div>', unsafe_allow_html=True)
 
 with col_profile_right:
@@ -225,8 +224,8 @@ with col_profile_right:
             How This Helps
         </div>
         <div style="color: var(--text-secondary); line-height: 1.7; margin-bottom: 1rem;">
-            This mode is designed for daily follow-up when a patient is seriously ill, 
-            under active observation, recovering after hospitalization, or managing a 
+            This mode is designed for daily follow-up when a patient is seriously ill,
+            under active observation, recovering after hospitalization, or managing a
             condition where symptom changes should be monitored closely.
         </div>
         <div style="font-weight: 600; margin-bottom: 0.5rem;">What Gets Tracked:</div>
@@ -257,17 +256,17 @@ col_checkin_left, col_checkin_right = st.columns([1.5, 1], gap="large")
 
 with col_checkin_left:
     st.markdown('<div class="answer-card">', unsafe_allow_html=True)
-    
+
     with st.form("checkin_form", clear_on_submit=False):
         update_date = st.date_input("Update Date", value=date.today())
-        
+
         condition_trend = st.selectbox(
             "Compared to yesterday, the condition is:",
             ["Improved", "Stable", "Worse"]
         )
-        
+
         pain_level = st.slider("Pain Level (0 = no pain, 10 = worst pain)", 0, 10, 3)
-        
+
         st.markdown("**Emergency Symptoms**")
         col_e1, col_e2 = st.columns(2)
         with col_e1:
@@ -278,10 +277,10 @@ with col_checkin_left:
             confusion = st.checkbox("Confusion / altered awareness")
             fainting = st.checkbox("Fainting / blackout")
             uncontrolled_bleeding = st.checkbox("Uncontrolled bleeding")
-        
+
         st.markdown("**Daily Care**")
         medications_taken = st.radio("Medications taken as instructed?", ["Yes", "No"], horizontal=True)
-        
+
         col_q1, col_q2, col_q3 = st.columns(3)
         with col_q1:
             sleep_quality = st.selectbox("Sleep Quality", ["Good", "Fair", "Poor"])
@@ -289,15 +288,15 @@ with col_checkin_left:
             appetite = st.selectbox("Appetite", ["Normal", "Reduced", "Very Low"])
         with col_q3:
             hydration = st.selectbox("Hydration", ["Adequate", "Reduced", "Poor"])
-        
+
         new_symptoms = st.text_area(
             "Any new symptoms or important changes?",
             height=100,
             placeholder="Describe any new symptom or worsening sign"
         )
-        
+
         submitted_update = st.form_submit_button("Save Daily Update", use_container_width=True, type="primary")
-        
+
         if submitted_update:
             payload = {
                 "date": str(update_date),
@@ -315,30 +314,30 @@ with col_checkin_left:
                 "hydration": hydration,
                 "new_symptoms": new_symptoms.strip(),
             }
-            
+
             risk_level, risk_message = assess_risk(payload)
             summary = build_daily_summary(payload, risk_level)
-            
+
             payload["risk_level"] = risk_level
             payload["risk_message"] = risk_message
             payload["summary"] = summary
             payload["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            
+
             st.session_state.daily_updates.append(payload)
-            
+
             if "risk_alerts_open" in st.session_state and risk_level in ["high", "medium"]:
                 st.session_state.risk_alerts_open += 1
-            
+
             st.success("✓ Daily update saved successfully")
             st.rerun()
-    
+
     st.markdown('</div>', unsafe_allow_html=True)
 
 # SECTION 3: TODAY'S RESULT
 with col_checkin_right:
     if st.session_state.daily_updates:
         latest = st.session_state.daily_updates[-1]
-        
+
         render_risk_alert_banner(latest['risk_level'], latest['risk_message'])
 
         # "What Changed" engine — compare today vs yesterday
@@ -365,7 +364,7 @@ with col_checkin_right:
   </div>
   {changes_html}
 </div>""", unsafe_allow_html=True)
-        
+
         st.markdown(f"""
         <div class="answer-card">
             <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 1rem;">Today's Status</div>
@@ -375,7 +374,7 @@ with col_checkin_right:
             <div style="margin-bottom: 0.5rem;"><strong>Sleep:</strong> {latest['sleep_quality']}</div>
         </div>
         """, unsafe_allow_html=True)
-        
+
         st.markdown(f"""
         <div class="answer-card">
             <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 1rem;">Daily Summary</div>
@@ -404,9 +403,9 @@ if st.session_state.daily_updates:
         Trend Analysis
     </div>
     """, unsafe_allow_html=True)
-    
+
     col_chart1, col_chart2 = st.columns(2, gap="large")
-    
+
     with col_chart1:
         render_trend_chart(
             st.session_state.daily_updates,
@@ -414,13 +413,13 @@ if st.session_state.daily_updates:
             "pain_level",
             "Pain Level Over Time"
         )
-    
+
     with col_chart2:
         risk_dist = {}
         for update in st.session_state.daily_updates:
             risk = update.get("risk_level", "low")
             risk_dist[risk] = risk_dist.get(risk, 0) + 1
-        
+
         render_distribution_chart(risk_dist, "Risk Level Distribution")
 
 # ============================================================================
@@ -434,7 +433,7 @@ if st.session_state.daily_updates:
         Check-in History
     </div>
     """, unsafe_allow_html=True)
-    
+
     render_check_in_timeline(st.session_state.daily_updates)
 
 # Footer actions
@@ -453,7 +452,8 @@ if len(st.session_state.daily_updates) >= 3:
 
     if st.button("Generate Visit Summary", type="primary", use_container_width=False):
         with st.spinner("Preparing your visit summary..."):
-            import requests, os
+            import requests
+            import os
             api_url = os.getenv("API_BASE_URL", "https://healthcare-rag-api.onrender.com")
             try:
                 resp = requests.post(f"{api_url}/visit/prepare", json={

@@ -8,9 +8,8 @@ import os
 import json
 import sqlite3
 from contextlib import contextmanager
-from typing import List, Dict, Optional
+from typing import List, Dict
 from datetime import datetime
-from collections import defaultdict
 from loguru import logger
 
 

@@ -90,11 +90,11 @@ def get_report_service() -> ReportService:
 async def analyze_uploaded_report(file: UploadFile = File(...)):
     """
     Analyze uploaded medical report (PDF, image, or text).
-    
+
     Extracts structured values, generates summary, flags abnormal results.
     """
     logger.info(f"[ReportsAPI] Analyzing uploaded file: {file.filename}")
-    
+
     try:
         text = extract_text_from_upload(file)
         service = get_report_service()
@@ -111,11 +111,11 @@ async def analyze_uploaded_report(file: UploadFile = File(...)):
 async def analyze_text_report(payload: ReportTextRequest):
     """
     Analyze pasted medical report text.
-    
+
     Extracts structured values, generates summary, flags abnormal results.
     """
     logger.info(f"[ReportsAPI] Analyzing pasted text ({len(payload.text)} chars)")
-    
+
     try:
         service = get_report_service()
         result = service.analyze(payload.text)

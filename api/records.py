@@ -11,7 +11,6 @@ Endpoints for the personal Medical Record Summarizer feature:
 import sys
 import time
 from pathlib import Path
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
@@ -75,7 +74,7 @@ async def upload_record(
             # Use vision model to extract text from image
             logger.info(f"[Records] Processing image file: {file.filename}")
             result = await image_analyzer.analyze_image(content, image_type="medical_document")
-            
+
             if result["success"]:
                 extracted_text = result["extracted_text"]
                 chunks_stored = personal_store.add_text(session_id, extracted_text, file.filename)
@@ -109,7 +108,7 @@ async def analyze_records(
     """
     Run structured extraction on all records uploaded in this session.
     Returns a JSON object with diagnoses, lab values, medications, etc.
-    
+
     If include_recommendations=True, also generates personalized health recommendations
     including dietary advice, lifestyle suggestions, and action plans.
     """
@@ -123,7 +122,7 @@ async def analyze_records(
     start = time.time()
     result = await extract_record_structure(full_text)
     extraction_latency = (time.time() - start) * 1000
-    
+
     # Generate personalized health recommendations
     recommendations = None
     recommendations_latency = 0
@@ -131,7 +130,7 @@ async def analyze_records(
         rec_start = time.time()
         recommendations = await generate_health_recommendations(result)
         recommendations_latency = (time.time() - rec_start) * 1000
-    
+
     total_latency = extraction_latency + recommendations_latency
 
     return {

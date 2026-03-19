@@ -23,7 +23,7 @@ from utils.config import config
 class ReasoningAgent:
     """
     Performs multi-step reasoning for complex medical queries.
-    
+
     Steps:
     1. Analyze problem
     2. Organize evidence
@@ -31,7 +31,7 @@ class ReasoningAgent:
     4. Generate answer
     5. Validate answer
     """
-    
+
     PROBLEM_ANALYSIS_PROMPT = """You are a medical problem analyzer. Break down this query into key components.
 
 Identify:
@@ -80,7 +80,7 @@ Use simple language. Be accurate and helpful."""
 5. Doesn't make claims beyond the evidence
 
 Return: "VALID" or "NEEDS_REVISION" with brief reason."""
-    
+
     def __init__(self):
         self.llm = ChatOpenAI(
             api_key=config.OPENAI_API_KEY,
@@ -88,7 +88,7 @@ Return: "VALID" or "NEEDS_REVISION" with brief reason."""
             temperature=0.1
         )
         logger.info("[ReasoningAgent] Initialized")
-    
+
     async def reason(
         self,
         query: str,
@@ -97,17 +97,17 @@ Return: "VALID" or "NEEDS_REVISION" with brief reason."""
     ) -> Dict:
         """
         Perform multi-step reasoning.
-        
+
         Args:
             query: User's question
             evidence: Retrieved evidence/documents
             context: Optional conversation context
-        
+
         Returns:
             Dict with reasoning steps and final answer
         """
         reasoning_steps = []
-        
+
         try:
             # Step 1: Analyze Problem
             problem_analysis = await self._analyze_problem(query, context)
@@ -116,7 +116,7 @@ Return: "VALID" or "NEEDS_REVISION" with brief reason."""
                 "name": "Problem Analysis",
                 "output": problem_analysis
             })
-            
+
             # Step 2: Organize Evidence
             organized_evidence = await self._organize_evidence(query, evidence)
             reasoning_steps.append({
@@ -124,7 +124,7 @@ Return: "VALID" or "NEEDS_REVISION" with brief reason."""
                 "name": "Evidence Organization",
                 "output": organized_evidence
             })
-            
+
             # Step 3: Compare Conditions (if applicable)
             comparison = await self._compare_conditions(query, organized_evidence)
             reasoning_steps.append({
@@ -132,7 +132,7 @@ Return: "VALID" or "NEEDS_REVISION" with brief reason."""
                 "name": "Condition Comparison",
                 "output": comparison
             })
-            
+
             # Step 4: Generate Answer
             answer = await self._generate_answer(query, reasoning_steps)
             reasoning_steps.append({
@@ -140,7 +140,7 @@ Return: "VALID" or "NEEDS_REVISION" with brief reason."""
                 "name": "Answer Generation",
                 "output": answer
             })
-            
+
             # Step 5: Validate Answer
             validation = await self._validate_answer(query, answer, evidence)
             reasoning_steps.append({
@@ -148,19 +148,19 @@ Return: "VALID" or "NEEDS_REVISION" with brief reason."""
                 "name": "Validation",
                 "output": validation
             })
-            
+
             # Calculate confidence based on validation
             confidence = 0.9 if "VALID" in validation else 0.6
-            
+
             logger.info(f"[ReasoningAgent] Completed 5-step reasoning with confidence {confidence}")
-            
+
             return {
                 "answer": answer,
                 "reasoning_steps": reasoning_steps,
                 "confidence": confidence,
                 "validation_status": "VALID" if "VALID" in validation else "NEEDS_REVIEW"
             }
-            
+
         except Exception as e:
             logger.error(f"[ReasoningAgent] Reasoning failed: {e}")
             return {
@@ -170,7 +170,7 @@ Return: "VALID" or "NEEDS_REVISION" with brief reason."""
                 "validation_status": "ERROR",
                 "error": str(e)
             }
-    
+
     async def _analyze_problem(self, query: str, context: Optional[str]) -> str:
         """Step 1: Analyze the problem"""
         messages = [
@@ -179,18 +179,18 @@ Return: "VALID" or "NEEDS_REVISION" with brief reason."""
         ]
         response = await self.llm.ainvoke(messages)
         return response.content.strip()
-    
+
     async def _organize_evidence(self, query: str, evidence: List[str]) -> str:
         """Step 2: Organize evidence"""
         evidence_text = "\n\n---\n\n".join(evidence[:10]) if evidence else "No evidence provided"
-        
+
         messages = [
             SystemMessage(content=self.EVIDENCE_ORGANIZATION_PROMPT),
             HumanMessage(content=f"Query: {query}\n\nEvidence:\n{evidence_text}")
         ]
         response = await self.llm.ainvoke(messages)
         return response.content.strip()
-    
+
     async def _compare_conditions(self, query: str, organized_evidence: str) -> str:
         """Step 3: Compare conditions/options"""
         messages = [
@@ -199,7 +199,7 @@ Return: "VALID" or "NEEDS_REVISION" with brief reason."""
         ]
         response = await self.llm.ainvoke(messages)
         return response.content.strip()
-    
+
     async def _generate_answer(self, query: str, reasoning_steps: List[Dict]) -> str:
         """Step 4: Generate final answer"""
         # Combine all reasoning steps
@@ -207,18 +207,18 @@ Return: "VALID" or "NEEDS_REVISION" with brief reason."""
             f"Step {step['step']} - {step['name']}:\n{step['output']}"
             for step in reasoning_steps
         ])
-        
+
         messages = [
             SystemMessage(content=self.ANSWER_GENERATION_PROMPT),
             HumanMessage(content=f"Original Query: {query}\n\nReasoning Steps:\n{reasoning_summary}")
         ]
         response = await self.llm.ainvoke(messages)
         return response.content.strip()
-    
+
     async def _validate_answer(self, query: str, answer: str, evidence: List[str]) -> str:
         """Step 5: Validate the answer"""
         evidence_text = "\n".join(evidence[:5]) if evidence else "No evidence"
-        
+
         messages = [
             SystemMessage(content=self.VALIDATION_PROMPT),
             HumanMessage(content=f"Query: {query}\n\nAnswer: {answer}\n\nEvidence: {evidence_text}")

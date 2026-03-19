@@ -18,12 +18,10 @@ sys.path.insert(0, str(Path(__file__).parent))
 from components.healthcare_components import (
     render_app_shell,
     render_sidebar_nav,
-    render_page_header,
     render_hero_banner,
     render_mode_card,
     render_metric_card,
     render_trust_panel,
-    render_confidence_badge,
     format_timestamp
 )
 
@@ -191,17 +189,17 @@ with col_left:
             Recent Analyses
         </div>
     """, unsafe_allow_html=True)
-    
+
     if st.session_state.history:
         st.markdown('<div class="timeline-container">', unsafe_allow_html=True)
-        
+
         for item in reversed(st.session_state.history[-5:]):
             timestamp = item.get("timestamp", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
             query_type = item.get("query_type", "General")
             query = item.get("query", "No query")[:60] + "..."
             confidence = item.get("confidence", 0)
             conf_class = "high" if confidence > 0.8 else "medium" if confidence > 0.6 else "low"
-            
+
             st.markdown(f"""
             <div class="timeline-item">
                 <div class="timeline-date">{format_timestamp(timestamp)}</div>
@@ -212,7 +210,7 @@ with col_left:
                 </div>
             </div>
             """, unsafe_allow_html=True)
-        
+
         st.markdown('</div>', unsafe_allow_html=True)
     else:
         st.markdown("""
@@ -220,7 +218,7 @@ with col_left:
             No recent analyses. Start by choosing a care workflow above.
         </div>
         """, unsafe_allow_html=True)
-    
+
     st.markdown("</div>", unsafe_allow_html=True)
 
 with col_right:
@@ -230,15 +228,15 @@ with col_right:
             Current Alerts & Follow-up
         </div>
     """, unsafe_allow_html=True)
-    
+
     # Check for high-risk daily updates
     high_risk_updates = [u for u in st.session_state.daily_updates if u.get("risk_level") == "high"]
-    
+
     if high_risk_updates:
         for update in high_risk_updates[-3:]:
             date = update.get("date", "")
             risk_msg = update.get("risk_message", "")
-            
+
             st.markdown(f"""
             <div class="risk-alert risk-alert-high" style="margin-bottom: 1rem;">
                 <div class="risk-alert-icon">!</div>
@@ -248,10 +246,10 @@ with col_right:
                 </div>
             </div>
             """, unsafe_allow_html=True)
-    
+
     # Check for low-confidence analyses
     low_conf_analyses = [h for h in st.session_state.history if h.get("confidence", 1) < 0.6]
-    
+
     if low_conf_analyses:
         st.markdown("""
         <div style="padding: 1rem; background: var(--warning-light); border-radius: 8px; margin-bottom: 1rem;">
@@ -263,7 +261,7 @@ with col_right:
             </div>
         </div>
         """.format(count=len(low_conf_analyses)), unsafe_allow_html=True)
-    
+
     # Check for due check-ins
     if st.session_state.active_followup_cases > 0:
         st.markdown("""
@@ -276,17 +274,17 @@ with col_right:
             </div>
         </div>
         """, unsafe_allow_html=True)
-        
+
         if st.button("Go to Follow-up Monitor", key="goto_followup", use_container_width=True):
             st.switch_page("pages/3_Followup_Monitor.py")
-    
+
     if not high_risk_updates and not low_conf_analyses and st.session_state.active_followup_cases == 0:
         st.markdown("""
         <div style="text-align: center; padding: 2rem; color: var(--text-secondary);">
             No alerts or pending actions. System is operating normally.
         </div>
         """, unsafe_allow_html=True)
-    
+
     st.markdown("</div>", unsafe_allow_html=True)
 
 st.markdown("<br><br>", unsafe_allow_html=True)
