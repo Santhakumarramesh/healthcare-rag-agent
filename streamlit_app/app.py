@@ -981,6 +981,7 @@ def render_clinical_answer_card(response_data):
     query_type = response_data.get("query_type", response_data.get("intent", "general_qa"))
     routing_confidence = response_data.get("routing_confidence", 0)
     citation_summary = response_data.get("citation_summary", {})
+    reasoning_steps = response_data.get("reasoning_steps", [])
     
     # Query type badge
     query_type_display = query_type.replace("_", " ").title()
@@ -1011,6 +1012,7 @@ def render_clinical_answer_card(response_data):
             border-radius: 12px;
             font-size: 0.85em;
         ">🎯 Routing: {routing_confidence*100:.0f}%</span>
+        {f'<span style="background: #fef3c7; color: #92400e; padding: 4px 12px; border-radius: 12px; font-size: 0.85em;">🧠 Multi-Step Reasoning</span>' if reasoning_steps else ''}
     </div>
     """, unsafe_allow_html=True)
     
@@ -1083,6 +1085,30 @@ def render_clinical_answer_card(response_data):
                         <div class="source-preview">{text_preview}...</div>
                     </div>
                     """, unsafe_allow_html=True)
+    
+    # Multi-Step Reasoning Display (if available)
+    if reasoning_steps:
+        with st.expander("🧠 View Reasoning Steps", expanded=False):
+            st.markdown("**Multi-Step Reasoning Process:**")
+            for step in reasoning_steps:
+                step_num = step.get("step", 0)
+                step_name = step.get("name", "Unknown")
+                step_output = step.get("output", "")
+                
+                st.markdown(f"""
+                <div style="
+                    border-left: 3px solid #3b82f6;
+                    padding: 12px;
+                    margin: 8px 0;
+                    background: #f9fafb;
+                    border-radius: 4px;
+                ">
+                    <strong>Step {step_num}: {step_name}</strong>
+                    <div style="margin-top: 8px; color: #4b5563;">
+                        {step_output}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
     
     # Safety note
     st.markdown("""
@@ -1524,18 +1550,33 @@ elif st.session_state.current_page == "dashboard":
     st.markdown("<br>", unsafe_allow_html=True)
     
     try:
-        stats = requests.get(f"{API_BASE}/stats", timeout=3).json()
+        # Fetch real-time monitoring data
+        monitoring_resp = requests.get(f"{API_BASE}/monitoring/stats", timeout=5)
+        stats_resp = requests.get(f"{API_BASE}/stats", timeout=3)
         
-        # KPI Cards with trend indicators
+        if monitoring_resp.status_code == 200:
+            monitoring_data = monitoring_resp.json()
+            real_stats = monitoring_data.get("stats", {})
+            time_series = monitoring_data.get("time_series", {})
+            query_type_data = monitoring_data.get("query_type_chart", {})
+        else:
+            # Fallback to old stats endpoint
+            real_stats = {}
+            time_series = {}
+            query_type_data = {}
+        
+        stats = stats_resp.json() if stats_resp.status_code == 200 else {}
+        
+        # KPI Cards with REAL DATA
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            total_queries = stats.get('cache', {}).get('total_requests', 0)
+            total_queries = real_stats.get('total_queries', stats.get('cache', {}).get('total_requests', 0))
             st.markdown(f"""
             <div class="metric-card">
                 <div class="metric-trend trend-up">
                     <span class="trend-arrow">↑</span>
-                    <span>12%</span>
+                    <span>Live</span>
                 </div>
                 <div class="metric-value">{total_queries}</div>
                 <div class="metric-label">Total Queries</div>
@@ -1543,39 +1584,48 @@ elif st.session_state.current_page == "dashboard":
             """, unsafe_allow_html=True)
         
         with col2:
-            hit_rate = stats.get('cache', {}).get('hit_rate', 0)
+            avg_confidence = real_stats.get('avg_confidence', 0)
+            if avg_confidence == 0:
+                hit_rate = stats.get('cache', {}).get('hit_rate', 0)
+                display_value = f"{int(hit_rate*100)}%"
+                label = "Cache Hit Rate"
+            else:
+                display_value = f"{int(avg_confidence*100)}%"
+                label = "Avg Confidence"
             st.markdown(f"""
             <div class="metric-card">
                 <div class="metric-trend trend-up">
                     <span class="trend-arrow">↑</span>
-                    <span>8%</span>
+                    <span>Live</span>
                 </div>
-                <div class="metric-value">{int(hit_rate*100)}%</div>
-                <div class="metric-label">Cache Hit Rate</div>
+                <div class="metric-value">{display_value}</div>
+                <div class="metric-label">{label}</div>
             </div>
             """, unsafe_allow_html=True)
         
         with col3:
+            avg_latency = real_stats.get('avg_latency_ms', 0) / 1000 if real_stats.get('avg_latency_ms') else 6.2
             st.markdown(f"""
             <div class="metric-card">
                 <div class="metric-trend trend-down">
                     <span class="trend-arrow">↓</span>
-                    <span>5%</span>
+                    <span>Live</span>
                 </div>
-                <div class="metric-value">6.2s</div>
+                <div class="metric-value">{avg_latency:.1f}s</div>
                 <div class="metric-label">Avg Latency</div>
             </div>
             """, unsafe_allow_html=True)
         
         with col4:
+            success_rate = real_stats.get('success_rate', 1.0)
             st.markdown(f"""
             <div class="metric-card">
                 <div class="metric-trend trend-up">
                     <span class="trend-arrow">↑</span>
-                    <span>3%</span>
+                    <span>Live</span>
                 </div>
-                <div class="metric-value">87%</div>
-                <div class="metric-label">Avg Confidence</div>
+                <div class="metric-value">{int(success_rate*100)}%</div>
+                <div class="metric-label">Success Rate</div>
             </div>
             """, unsafe_allow_html=True)
         

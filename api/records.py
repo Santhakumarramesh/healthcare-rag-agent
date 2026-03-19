@@ -20,10 +20,11 @@ from loguru import logger
 sys.path.append(str(Path(__file__).parent.parent))
 from vectorstore.personal_store import personal_store
 from agents.records_agent import extract_record_structure, answer_record_question, generate_health_recommendations
+from multimodal.image_analyzer import image_analyzer
 
 router = APIRouter(prefix="/records", tags=["Medical Records"])
 
-_ALLOWED_EXTENSIONS = {".pdf", ".txt", ".text"}
+_ALLOWED_EXTENSIONS = {".pdf", ".txt", ".text", ".jpg", ".jpeg", ".png"}
 _MAX_FILE_MB = 10
 
 
@@ -67,8 +68,20 @@ async def upload_record(
         )
 
     try:
+        # Handle different file types
         if suffix == ".pdf":
             chunks_stored = personal_store.add_pdf(session_id, content, file.filename)
+        elif suffix in {".jpg", ".jpeg", ".png"}:
+            # Use vision model to extract text from image
+            logger.info(f"[Records] Processing image file: {file.filename}")
+            result = await image_analyzer.analyze_image(content, image_type="medical_document")
+            
+            if result["success"]:
+                extracted_text = result["extracted_text"]
+                chunks_stored = personal_store.add_text(session_id, extracted_text, file.filename)
+                logger.success(f"[Records] Extracted text from image: {len(extracted_text)} chars")
+            else:
+                raise ValueError(f"Failed to extract text from image: {result.get('error')}")
         else:
             text = content.decode("utf-8", errors="replace")
             chunks_stored = personal_store.add_text(session_id, text, file.filename)

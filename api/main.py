@@ -6,6 +6,7 @@ import time
 from pathlib import Path
 from contextlib import asynccontextmanager
 from typing import Optional, List
+from datetime import datetime
 
 import json
 import asyncio
@@ -19,9 +20,11 @@ from fastapi.responses import Response, StreamingResponse
 sys.path.append(str(Path(__file__).parent.parent))
 from agents.rag_pipeline import HealthcareRAGPipeline
 from agents.router_agent import RouterAgent, QueryType
+from agents.reasoning_agent import reasoning_agent
 from api.records import router as records_router
 from services.memory_service import memory_service
 from services.citation_service import citation_service
+from services.monitoring_service import monitoring_service
 from utils.config import config
 from utils.cache import response_cache
 from utils.rate_limiter import rate_limiter
@@ -106,6 +109,7 @@ class ChatResponse(BaseModel):
     query_type: Optional[str] = None
     routing_confidence: Optional[float] = None
     citation_summary: Optional[dict] = None
+    reasoning_steps: Optional[List[dict]] = None
 
 
 class HealthResponse(BaseModel):
@@ -165,6 +169,21 @@ async def clear_conversation_history(session_id: str):
     """Clear conversation history for a session"""
     memory_service.clear_session(session_id)
     return {"message": "Session history cleared", "session_id": session_id}
+
+
+@app.get("/monitoring/stats", tags=["Monitoring"])
+async def get_monitoring_stats():
+    """Get real-time system statistics"""
+    stats = monitoring_service.get_real_time_stats()
+    time_series = monitoring_service.get_time_series_data(hours=24)
+    query_type_data = monitoring_service.get_query_type_chart_data()
+    
+    return {
+        "stats": stats,
+        "time_series": time_series,
+        "query_type_chart": query_type_data,
+        "timestamp": datetime.now().isoformat()
+    }
 
 
 @app.post("/chat", response_model=ChatResponse, tags=["RAG"])
@@ -252,17 +271,52 @@ async def chat(request: ChatRequest):
             0.2 * quality_score
         )
 
-        # 9. UPDATE METRICS
+        # 9. APPLY MULTI-STEP REASONING FOR COMPLEX QUERIES
+        reasoning_steps = []
+        use_reasoning = route_info["type"] in ["symptom_check", "preventive_care"] and len(request.query.split()) > 15
+        
+        if use_reasoning:
+            # Extract evidence text from sources
+            evidence_texts = [
+                getattr(source, 'page_content', getattr(source, 'text', ''))
+                for source in raw_sources[:5]
+            ]
+            
+            # Run reasoning agent
+            reasoning_result = await reasoning_agent.reason(
+                request.query,
+                evidence_texts,
+                context=conversation_context
+            )
+            
+            # Use reasoning agent's answer
+            result["response"] = reasoning_result["answer"]
+            reasoning_steps = reasoning_result["reasoning_steps"]
+            
+            # Update confidence with reasoning confidence
+            enhanced_confidence = (enhanced_confidence + reasoning_result["confidence"]) / 2
+
+        # 10. UPDATE METRICS
         REQUEST_COUNT.labels(intent=route_info["type"]).inc()
         REQUEST_LATENCY.observe(latency_ms / 1000)
         QUALITY_SCORE_HIST.observe(enhanced_confidence)
+        
+        # Record in monitoring service
+        monitoring_service.record_query(
+            query_type=route_info["type"],
+            latency_ms=latency_ms,
+            confidence=enhanced_confidence,
+            sources_count=len(formatted_citations),
+            success=True
+        )
 
         logger.info(
             f"Query: '{request.query[:40]}...' | "
             f"Type: {route_info['type']} | "
             f"Latency: {latency_ms:.0f}ms | "
             f"Confidence: {enhanced_confidence:.2f} | "
-            f"Sources: {len(formatted_citations)}"
+            f"Sources: {len(formatted_citations)} | "
+            f"Reasoning: {'Yes' if reasoning_steps else 'No'}"
         )
 
         response_data = {
@@ -273,15 +327,16 @@ async def chat(request: ChatRequest):
             "quality_score": round(quality_score, 3),
             "hallucination_risk": result.get("hallucination_risk", "low"),
             "evaluation_notes": result.get("evaluation_notes", ""),
-            "agent_trace": result.get("agent_trace", []) + [f"Routed as: {route_info['type']}"],
+            "agent_trace": result.get("agent_trace", []) + [f"Routed as: {route_info['type']}"] + ([f"Multi-step reasoning applied ({len(reasoning_steps)} steps)"] if reasoning_steps else []),
             "sources": formatted_citations,
             "latency_ms": round(latency_ms, 2),
             "query_type": route_info["type"],
             "routing_confidence": route_info["confidence"],
-            "citation_summary": citation_summary
+            "citation_summary": citation_summary,
+            "reasoning_steps": reasoning_steps if reasoning_steps else None
         }
 
-        # 10. STORE IN MEMORY
+        # 11. STORE IN MEMORY
         memory_service.add_interaction(client_id, {
             "query": request.query,
             "answer": result["response"],
@@ -290,7 +345,7 @@ async def chat(request: ChatRequest):
             "sources": formatted_citations
         })
 
-        # 11. CACHE THE RESPONSE
+        # 12. CACHE THE RESPONSE
         response_cache.set(request.query, response_data)
 
         return ChatResponse(**response_data)
