@@ -10,7 +10,11 @@ from dataclasses import dataclass
 import faiss
 import numpy as np
 from loguru import logger
-from pinecone import Pinecone
+try:
+    from pinecone import Pinecone
+    _PINECONE_AVAILABLE = True
+except ImportError:
+    _PINECONE_AVAILABLE = False
 from rank_bm25 import BM25Okapi
 import re
 
@@ -122,6 +126,9 @@ class HybridRetriever:
 
     def _load_pinecone(self):
         """Initialize Pinecone for cloud-hosted retrieval."""
+        if not _PINECONE_AVAILABLE:
+            logger.warning("Pinecone package not installed — skipping Pinecone init.")
+            return
         try:
             logger.info(f"Connecting to Pinecone index: {config.PINECONE_INDEX_NAME}...")
             pc = Pinecone(api_key=config.PINECONE_API_KEY)
