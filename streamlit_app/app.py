@@ -176,8 +176,8 @@ with st.sidebar:
 
 # ── Header ─────────────────────────────────────────────────────────────────────
 st.markdown("""<div class="main-header">
-  <h1>🏥 MediAssist — Healthcare Super-Agent</h1>
-  <p>5-Agent LangGraph Pipeline · BM25+FAISS Hybrid Retrieval · Self-Correction Loop · Real-Time Streaming</p>
+  <h1>🏥 Healthcare RAG Multi-Agent System</h1>
+  <p>5-Stage LangGraph Pipeline · BM25+FAISS Hybrid Retrieval · Self-Correction Loop · Real-Time Streaming</p>
 </div>""", unsafe_allow_html=True)
 
 # Architecture always visible at top
@@ -398,9 +398,9 @@ with tab_arch:
     c1,c2 = st.columns(2)
     with c1:
         st.markdown("""
-**Multi-agent LangGraph pipeline**
+**5-Stage LangGraph Pipeline**
 
-Every query passes through 5 specialized async agents:
+Every query passes through 5 stages with optional self-correction:
 
 | Agent | Role |
 |-------|------|
