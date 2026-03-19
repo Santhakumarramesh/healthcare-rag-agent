@@ -102,25 +102,21 @@ class HybridRetriever:
 
     def _init_reranker(self):
         """
-        Use NVIDIA NIM reranker when key is set, local CrossEncoder when available,
-        or no-op (return Stage 1 scores) on Render where neither is installed.
+        Use NVIDIA NIM reranker when key is set.
+        Skip local CrossEncoder — it uses joblib multiprocessing which crashes
+        uvicorn workers on Python 3.13 (semaphore leak). RRF scores from Stage 1
+        are sufficient for production quality without a cross-encoder.
         """
-        if _NVIDIA_RERANK_AVAILABLE and config.NVIDIA_API_KEY and config.NVIDIA_API_KEY != "nvapi-your-key-here":
+        if _NVIDIA_RERANK_AVAILABLE and config.NVIDIA_API_KEY and config.NVIDIA_API_KEY not in ("nvapi-your-key-here", ""):
             logger.debug(f"Using NVIDIA Reranker: {config.NVIDIA_RERANK_MODEL}")
             self.nvidia_reranker = NVIDIARerank(
                 model=config.NVIDIA_RERANK_MODEL,
                 api_key=config.NVIDIA_API_KEY,
             )
             self.rerank_model = None
-        elif _SENTENCE_TRANSFORMERS_AVAILABLE:
-            logger.debug("Using local MiniLM Reranker")
-            self.rerank_model = CrossEncoder(
-                "cross-encoder/ms-marco-MiniLM-L-6-v2",
-                device="cpu",
-            )
-            self.nvidia_reranker = None
         else:
-            logger.info("No reranker installed; returning Stage 1 ranked results directly.")
+            # No reranker — return Stage 1 RRF results directly (stable, no crash)
+            logger.info("Using RRF scores only (no cross-encoder reranker)")
             self.rerank_model = None
             self.nvidia_reranker = None
 
@@ -314,10 +310,11 @@ class HybridRetriever:
         """Helper for local Cross-Encoder reranking."""
         logger.info(f"Reranking {len(chunks)} chunks with Cross-Encoder...")
         sentence_pairs = [[query, chunk.text] for chunk in chunks]
-        scores = self.rerank_model.predict(sentence_pairs)
+        # n_jobs=1 disables joblib multiprocessing — prevents semaphore crash on Python 3.13 + uvicorn
+        scores = self.rerank_model.predict(sentence_pairs, num_workers=0)
         
         for i, score in enumerate(scores):
-            chunks[i].rerank_score = float(score) # Use rerank_score field
+            chunks[i].rerank_score = float(score)
             
         return sorted(chunks, key=lambda x: x.rerank_score, reverse=True)[:top_k]
 

@@ -212,8 +212,9 @@ async def retriever_agent(state: AgentState) -> AgentState:
         context = retriever.format_context(chunks)
 
         # Confidence = average of top rerank scores
+        # Use rerank_score if available (cross-encoder), else fall back to RRF score
         confidence = (
-            sum(c.rerank_score for c in chunks) / len(chunks) if chunks else 0.0
+            sum(c.rerank_score if c.rerank_score > 0 else c.score for c in chunks) / len(chunks) if chunks else 0.0
         )
 
         logger.info(f"[RETRIEVER] Found {len(chunks)} chunks | Confidence: {confidence:.3f}")
@@ -221,7 +222,7 @@ async def retriever_agent(state: AgentState) -> AgentState:
         return {
             **state,
             "retrieved_chunks": [
-                {"text": c.text, "metadata": c.metadata, "score": c.rerank_score}
+                {"text": c.text, "metadata": c.metadata, "score": c.rerank_score if c.rerank_score > 0 else c.score}
                 for c in chunks
             ],
             "context": context,
