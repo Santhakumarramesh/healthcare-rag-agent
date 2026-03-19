@@ -227,9 +227,17 @@ with tab_chat:
             sources    = meta.get("retrieved_chunks", [])
             retried    = any("RETRY" in t for t in agent_trace)
 
+            # Calculate confidence percentage
+            retrieval_conf = meta.get("retrieval_confidence", 0.0)
+            confidence_pct = int((q_score * 0.6 + retrieval_conf * 0.4) * 100)
+            conf_color = "#27ae60" if confidence_pct >= 80 else "#f39c12" if confidence_pct >= 60 else "#e74c3c"
+            
             st.markdown(f"""<div class="pipeline-wrap">
   <div class="pipeline-title">Agent pipeline result</div>
-  <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:.5rem;">
+  <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:.5rem;align-items:center;">
+    <div style="background:{conf_color};color:white;padding:8px 16px;border-radius:20px;font-weight:700;font-size:1.1rem;margin-right:8px;">
+      {confidence_pct}% Confidence
+    </div>
     {intent_badge(intent)}
     {badge(f"Quality: {q_score:.2f}", "green" if q_score>=.8 else "amber" if q_score>=.6 else "red")}
     {hall_badge(hall_risk)}
@@ -237,17 +245,27 @@ with tab_chat:
     {badge("🔁 Self-corrected","blue") if retried else ""}
   </div>""", unsafe_allow_html=True)
 
-            # Retrieval details
+            # Retrieval details with enhanced source display
             if sources:
-                chunk_html = "".join(
-                    f'<span class="chunk-badge">📄 {(s.get("source","") or s.get("metadata",{}).get("source","chunk") if isinstance(s,dict) else str(s)).split("/")[-1][:25]} '
-                    f'({s.get("score",0):.2f})</span>'
-                    for s in sources[:5]
-                )
                 st.markdown(
-                    f'<div class="retrieval-panel"><strong>📚 Retrieval:</strong> '
-                    f'BM25+FAISS→RRF fusion→cross-encoder rerank · {len(sources)} chunks<br>'
-                    f'{chunk_html}</div>', unsafe_allow_html=True)
+                    f'<div class="retrieval-panel"><strong>📚 Sources Used ({len(sources)} chunks):</strong> '
+                    f'BM25+FAISS→RRF fusion→cross-encoder rerank</div>', unsafe_allow_html=True)
+                
+                # Display sources in expandable section with more detail
+                with st.expander(f"📄 View {len(sources)} Source Citations", expanded=False):
+                    for idx, s in enumerate(sources[:5], 1):
+                        if isinstance(s, dict):
+                            source_name = (s.get("source","") or s.get("metadata",{}).get("source","chunk")).split("/")[-1]
+                            score = s.get("score", s.get("rerank_score", 0))
+                            text_preview = s.get("text", "")[:200]
+                            category = s.get("metadata", {}).get("category", "Document")
+                            
+                            st.markdown(f"""
+**Source {idx}**: `{source_name}` | Score: **{score:.3f}** | Category: *{category}*
+                            
+> {text_preview}{"..." if len(text_preview) >= 200 else ""}
+---
+                            """)
 
             # Agent trace steps
             if agent_trace:
@@ -263,6 +281,28 @@ with tab_chat:
             st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("---")
+    
+    # Query type quick-select buttons
+    st.markdown("**🎯 Quick Actions:**")
+    qcol1, qcol2, qcol3, qcol4 = st.columns(4)
+    with qcol1:
+        if st.button("💊 Drug Info", use_container_width=True, key="quick_drug"):
+            st.session_state.prefill = "Tell me about metformin - uses, side effects, and contraindications"
+            st.rerun()
+    with qcol2:
+        if st.button("🩺 Symptoms", use_container_width=True, key="quick_symptoms"):
+            st.session_state.prefill = "What could cause persistent fatigue, increased thirst, and frequent urination?"
+            st.rerun()
+    with qcol3:
+        if st.button("📋 Lab Results", use_container_width=True, key="quick_labs"):
+            st.session_state.prefill = "What does an HbA1c of 8.2% indicate and what should I do?"
+            st.rerun()
+    with qcol4:
+        if st.button("🔬 Research", use_container_width=True, key="quick_research"):
+            st.session_state.prefill = "What are the latest treatment guidelines for Type 2 diabetes?"
+            st.rerun()
+    
+    st.markdown("")
     prefill = st.session_state.pop("prefill", "")
     c1, c2 = st.columns([5,1])
     with c1:

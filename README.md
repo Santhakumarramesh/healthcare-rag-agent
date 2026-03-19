@@ -11,6 +11,24 @@ A multi-agent RAG system for healthcare Q&A with hybrid retrieval, self-correcti
 
 ---
 
+## 📸 Screenshots
+
+### Main Chat Interface with Live Agent Pipeline
+![Main Interface](docs/screenshots/main-interface.png)
+*Real-time agent execution visualization with confidence scores, quality metrics, and hallucination detection*
+
+### Medical Records Analysis
+![Medical Records](docs/screenshots/medical-records.png)
+*Upload PDFs, extract structured data, ask questions grounded in your personal health documents*
+
+### Architecture Visualization
+![Architecture](docs/screenshots/architecture.png)
+*Multi-agent pipeline with hybrid retrieval, self-correction, and safety validation*
+
+> **View the interactive architecture diagram:** [Open docs/architecture-diagram.html](docs/architecture-diagram.html)
+
+---
+
 ## What it does
 
 A user asks a healthcare question. Five async agents run in sequence:
@@ -208,16 +226,35 @@ healthcare-rag-agent/
 
 ---
 
-## What I personally built
+## 🛠️ What I personally built
 
-- Designed the multi-agent LangGraph state machine (router + conditional edges + retry loop)
-- Implemented hybrid BM25 + FAISS retrieval with RRF fusion and cross-encoder reranking
-- Built the session-scoped personal document store (in-memory FAISS per user session)
-- Built the medical record extraction agent (structured JSON output with lab flagging)
-- Implemented the ML risk scoring engine + LLM explanation pipeline
-- Built all FastAPI endpoints including SSE streaming
-- Built the Streamlit UI (4 tabs with live pipeline visualization)
-- Configured CI, Docker, and Render deployment
+**Core Architecture & Agents:**
+- Designed the multi-agent LangGraph state machine with router, conditional edges, and self-correction retry loop
+- Implemented hybrid BM25 + FAISS retrieval with RRF fusion (α=0.5) and cross-encoder reranking
+- Built 5-agent pipeline: Router → Retriever → Web Search → Responder → Evaluator
+- Implemented emergency detection and intent classification (5 types)
+
+**Medical Features:**
+- Built session-scoped personal document store (in-memory FAISS per user session)
+- Implemented medical record extraction agent (structured JSON with lab value flagging)
+- Created ML + LLM risk assessment pipeline (9 clinical factors → logistic regression → GPT explanation)
+
+**Production Features:**
+- Built response caching system (LRU with 30-min TTL, SHA256 hashing)
+- Implemented token bucket rate limiter (20 req/min, 100 req/hour)
+- Added hallucination detection using embedding similarity (AWS blog approach)
+- Integrated Prometheus metrics for monitoring
+
+**API & UI:**
+- Built all 12 FastAPI endpoints including SSE streaming (`/chat/stream`)
+- Designed Streamlit UI with 4 tabs and live agent pipeline visualization
+- Added real-time confidence scores, quality metrics, and source citations
+
+**DevOps:**
+- Configured GitHub Actions CI with pytest
+- Set up Docker + docker-compose for local full-stack deployment
+- Deployed API on Render and UI on Streamlit Cloud
+- Implemented security (pre-commit hooks, API key protection)
 
 ---
 
