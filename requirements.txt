@@ -35,8 +35,12 @@ pandas==2.2.3
 python-dotenv==1.1.0
 httpx==0.28.1
 
-# Monitoring & Logging
-loguru==0.7.3
+# Local LLM — Privacy Mode (Apple Silicon only, optional)
+# pip install airllm mlx mlx-lm   ← run separately, not auto-installed
+# airllm==2.11.0
+# mlx>=0.31.0
+# mlx-lm>=0.31.0
+
 prometheus-client==0.22.0
 pytest-asyncio==0.26.0
 rank-bm25==0.2.2

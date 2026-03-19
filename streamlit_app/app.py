@@ -256,6 +256,59 @@ with st.sidebar:
         st.session_state.messages = []
         st.rerun()
 
+    # ── Privacy Mode (AirLLM) ──────────────────────────────────────────────
+    st.markdown("---")
+    st.markdown("### 🔒 Privacy Mode")
+
+    # Check local model status
+    try:
+        local_status = requests.get(f"{API_BASE}/local-model/status", timeout=3).json()
+        local_available = local_status.get("available", False)
+    except Exception:
+        local_available = False
+        local_status = {}
+
+    if local_available:
+        is_downloaded = local_status.get("downloaded", False)
+        current_mode  = local_status.get("local_mode_active", False)
+
+        mode_label = "🟢 Local (Private)" if current_mode else "☁️ Cloud (OpenAI)"
+        st.markdown(f"**Current mode:** {mode_label}")
+
+        if not is_downloaded:
+            st.warning("Local model not downloaded yet (~4.7 GB)")
+            if st.button("⬇️ Download Llama 3 8B", use_container_width=True):
+                with st.spinner("Starting download in background…"):
+                    requests.post(f"{API_BASE}/local-model/download", timeout=10)
+                st.success("Download started! Check back in a few minutes.")
+        else:
+            st.success(f"✅ {local_status.get('cache_size', '')} cached locally")
+            toggle_on = st.toggle(
+                "Use local model (no data leaves device)",
+                value=current_mode,
+                key="local_mode_toggle",
+            )
+            if toggle_on != current_mode:
+                requests.post(
+                    f"{API_BASE}/local-model/toggle",
+                    params={"enable": toggle_on},
+                    timeout=5,
+                )
+                st.rerun()
+
+            if current_mode:
+                st.info(
+                    "🔒 **Privacy mode active**\n\n"
+                    "Llama 3 8B running on your device. "
+                    "No data is sent to OpenAI or any external server."
+                )
+    else:
+        st.markdown(
+            "<small>Local mode requires Apple Silicon Mac + "
+            "`pip install airllm mlx mlx-lm`</small>",
+            unsafe_allow_html=True,
+        )
+
 
 # ── Header ─────────────────────────────────────────────────────────────────────
 st.markdown("""

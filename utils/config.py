@@ -41,6 +41,13 @@ class Config:
     RERANK_TOP_K: int = int(os.getenv("RERANK_TOP_K", "3"))
     CONFIDENCE_THRESHOLD: float = float(os.getenv("CONFIDENCE_THRESHOLD", "0.6"))
 
+    # Local LLM (AirLLM privacy mode)
+    LOCAL_MODE: bool = os.getenv("LOCAL_MODE", "false").lower() == "true"
+    LOCAL_MODEL_ID: str = os.getenv(
+        "LOCAL_MODEL_ID",
+        "mlx-community/Meta-Llama-3-8B-Instruct-4bit"
+    )
+
     # API
     API_HOST: str = os.getenv("API_HOST", "0.0.0.0")
     API_PORT: int = int(os.getenv("API_PORT", "8000"))

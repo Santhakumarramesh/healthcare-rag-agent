@@ -9,7 +9,7 @@ from typing import Optional, List
 
 import json
 import asyncio
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from loguru import logger
@@ -177,6 +177,69 @@ async def reset_conversation():
 @app.get("/", tags=["System"])
 async def root():
     return {"name": "Healthcare RAG Multi-Agent API", "version": "1.0.0", "docs": "/docs"}
+
+
+# ── Local LLM Management Endpoints ───────────────────────────────────────────
+
+@app.get("/local-model/status", tags=["Local LLM"])
+async def local_model_status():
+    """Check if local AirLLM model is available and downloaded."""
+    try:
+        from utils.local_llm import LocalLLM, is_apple_silicon
+        if not is_apple_silicon():
+            return {"available": False, "reason": "Not Apple Silicon hardware"}
+        llm = LocalLLM()
+        info = llm.get_model_info()
+        return {"available": True, **info, "local_mode_active": config.LOCAL_MODE}
+    except ImportError:
+        return {"available": False, "reason": "AirLLM not installed. Run: pip install airllm mlx mlx-lm"}
+
+
+@app.post("/local-model/download", tags=["Local LLM"])
+async def download_local_model(background_tasks: BackgroundTasks):
+    """
+    Trigger download of the local Llama 3 8B model (~4.7GB).
+    Download runs in background — check /local-model/status for progress.
+    """
+    try:
+        from utils.local_llm import LocalLLM, is_apple_silicon
+        if not is_apple_silicon():
+            raise HTTPException(status_code=400, detail="Local model requires Apple Silicon Mac")
+
+        def _download():
+            logger.info("[API] Starting model download in background...")
+            llm = LocalLLM()
+            llm._load()  # This triggers the download
+            logger.success("[API] Model download complete.")
+
+        background_tasks.add_task(_download)
+        return {
+            "status": "download_started",
+            "model": config.LOCAL_MODEL_ID,
+            "size": "~4.7 GB",
+            "message": "Download started in background. Check /local-model/status for progress."
+        }
+    except ImportError:
+        raise HTTPException(status_code=400, detail="AirLLM not installed. Run: pip install airllm mlx mlx-lm")
+
+
+@app.post("/local-model/toggle", tags=["Local LLM"])
+async def toggle_local_mode(enable: bool):
+    """
+    Toggle between local (privacy) mode and cloud mode at runtime.
+    When enabled, all queries use Llama 3 8B on-device — no data sent externally.
+    """
+    import os
+    os.environ["LOCAL_MODE"] = "true" if enable else "false"
+    config.LOCAL_MODE = enable
+
+    mode = "LOCAL (AirLLM Llama 3 8B — private, no data leaves device)" if enable else "CLOUD (OpenAI GPT-4o-mini)"
+    logger.info(f"[API] Switched to {mode}")
+    return {
+        "local_mode": enable,
+        "active_model": config.LOCAL_MODEL_ID if enable else config.OPENAI_MODEL,
+        "message": f"Now using: {mode}"
+    }
 
 
 if __name__ == "__main__":

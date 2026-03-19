@@ -76,11 +76,29 @@ class AgentState(TypedDict):
 # ─── LLM Setup ────────────────────────────────────────────────────────────────
 
 def get_llm(temperature: float = 0.0, streaming: bool = False):
-    """Factory to return the appropriate LLM based on configuration."""
-    if config.NVIDIA_API_KEY and config.NVIDIA_API_KEY != "nvapi-your-key-here":
+    """
+    LLM factory — 3 modes, resolved in priority order:
+      1. LOCAL_MODE=true  → AirLLM (Llama 3 8B on-device, no API key, private)
+      2. NVIDIA_API_KEY   → NVIDIA NIM (cloud, fast, powerful)
+      3. default          → OpenAI GPT-4o-mini (cloud, fast, cheap)
+    """
+    # ── Mode 1: Local privacy mode via AirLLM ────────────────────────────────
+    if config.LOCAL_MODE:
+        try:
+            from utils.local_llm import LocalLLM, is_apple_silicon
+            if is_apple_silicon():
+                logger.info("[LLM] Using LOCAL mode (AirLLM + Llama 3 8B on Apple MLX)")
+                return LocalLLM(model_id=config.LOCAL_MODEL_ID)
+            else:
+                logger.warning("[LLM] LOCAL_MODE=true but not Apple Silicon — falling back to OpenAI")
+        except ImportError:
+            logger.warning("[LLM] AirLLM not installed — falling back to OpenAI. Run: pip install airllm mlx mlx-lm")
+
+    # ── Mode 2: NVIDIA NIM cloud ─────────────────────────────────────────────
+    if config.NVIDIA_API_KEY and "your-" not in config.NVIDIA_API_KEY:
         try:
             from langchain_nvidia_ai_endpoints import ChatNVIDIA
-            logger.debug(f"Using NVIDIA NIM: {config.NVIDIA_MODEL}")
+            logger.debug(f"[LLM] Using NVIDIA NIM: {config.NVIDIA_MODEL}")
             return ChatNVIDIA(
                 model=config.NVIDIA_MODEL,
                 api_key=config.NVIDIA_API_KEY,
@@ -88,9 +106,10 @@ def get_llm(temperature: float = 0.0, streaming: bool = False):
                 streaming=streaming,
             )
         except ImportError:
-            logger.warning("langchain_nvidia_ai_endpoints not installed; falling back to OpenAI.")
+            logger.warning("[LLM] langchain_nvidia_ai_endpoints not installed — falling back to OpenAI")
 
-    logger.debug(f"Using OpenAI: {config.OPENAI_MODEL}")
+    # ── Mode 3: OpenAI (default) ─────────────────────────────────────────────
+    logger.debug(f"[LLM] Using OpenAI: {config.OPENAI_MODEL}")
     return ChatOpenAI(
         api_key=config.OPENAI_API_KEY,
         model=config.OPENAI_MODEL,
