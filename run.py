@@ -22,9 +22,11 @@ def main():
     cmd = sys.argv[1].lower()
 
     if cmd == "api":
-        print("🚀 Starting FastAPI backend on http://localhost:8000 ...")
-        print("   API docs: http://localhost:8000/docs")
-        os.system("uvicorn api.main:app --reload --host 0.0.0.0 --port 8000")
+        port = int(os.environ.get("PORT", 8000))
+        reload_flag = "--reload" if os.environ.get("APP_ENV") == "development" else ""
+        print(f"🚀 Starting FastAPI backend on http://0.0.0.0:{port} ...")
+        print(f"   API docs: http://localhost:{port}/docs")
+        os.system(f"uvicorn api.main:app --host 0.0.0.0 --port {port} {reload_flag}".strip())
 
     elif cmd == "ui":
         print("🎨 Starting Streamlit UI on http://localhost:8501 ...")
