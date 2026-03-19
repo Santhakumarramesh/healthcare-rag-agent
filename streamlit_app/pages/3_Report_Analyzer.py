@@ -9,59 +9,59 @@ import streamlit as st
 import requests
 import pandas as pd
 import os
+import sys
+from pathlib import Path
+
+# Add parent directory to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from components.layout import load_css, page_header, render_sidebar_status
+from components.badges import confidence_badge, flag_badge
 
 API_BASE_URL = os.getenv("API_BASE_URL", "https://healthcare-rag-api.onrender.com")
 
 
-def render_confidence_badge(confidence: float) -> None:
-    """Render confidence badge with color coding."""
-    if confidence >= 0.85:
-        bg = "#E6F4EA"
-        fg = "#1E7E34"
-        label = "High Confidence"
-    elif confidence >= 0.65:
-        bg = "#FFF4E5"
-        fg = "#B26A00"
-        label = "Moderate Confidence"
-    else:
-        bg = "#FDECEC"
-        fg = "#B42318"
-        label = "Low Confidence"
-
-    st.markdown(
-        f"""
-        <div style="
-            display:inline-block;
-            padding:8px 14px;
-            border-radius:999px;
-            background:{bg};
-            color:{fg};
-            font-weight:600;
-            font-size:14px;
-            margin-bottom:10px;
-        ">
-            {label}: {int(confidence * 100)}%
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
 
 
 def render_abnormal_table(values: list[dict]) -> None:
     """Render extracted values table with abnormal highlighting."""
     if not values:
-        st.info("No structured lab values detected.")
+        st.markdown('<div style="color: #486581; font-size: 14px; padding: 20px; text-align: center; background: white; border: 1px solid #D9E2EC; border-radius: 12px;">No structured lab values detected</div>', unsafe_allow_html=True)
         return
 
-    df = pd.DataFrame(values)
-
-    def flag_style(row):
-        abnormal = str(row.get("flag", "")).lower() in {"high", "low", "abnormal", "critical"}
-        return ["background-color: #FDECEC" if abnormal else "" for _ in row]
-
-    st.subheader("Extracted Values")
-    styled = df.style.apply(flag_style, axis=1)
-    st.dataframe(styled, use_container_width=True)
+    st.markdown("### Extracted Values")
+    
+    # Build HTML table
+    table_html = '''
+    <table style="width: 100%; border-collapse: collapse; background: white; border: 1px solid #D9E2EC; border-radius: 12px; overflow: hidden;">
+        <thead>
+            <tr style="background: #F7FAFC;">
+                <th style="padding: 12px; text-align: left; font-size: 13px; font-weight: 600; color: #486581; text-transform: uppercase;">Test Name</th>
+                <th style="padding: 12px; text-align: left; font-size: 13px; font-weight: 600; color: #486581; text-transform: uppercase;">Value</th>
+                <th style="padding: 12px; text-align: left; font-size: 13px; font-weight: 600; color: #486581; text-transform: uppercase;">Unit</th>
+                <th style="padding: 12px; text-align: left; font-size: 13px; font-weight: 600; color: #486581; text-transform: uppercase;">Reference</th>
+                <th style="padding: 12px; text-align: left; font-size: 13px; font-weight: 600; color: #486581; text-transform: uppercase;">Status</th>
+            </tr>
+        </thead>
+        <tbody>
+    '''
+    
+    for val in values:
+        flag = val.get("flag", "").lower()
+        row_bg = "#FDECEC" if flag in ["high", "low"] else "white"
+        
+        table_html += f'''
+            <tr style="background: {row_bg}; border-top: 1px solid #D9E2EC;">
+                <td style="padding: 12px; font-size: 14px; color: #102A43; font-weight: 500;">{val.get("name", "")}</td>
+                <td style="padding: 12px; font-size: 14px; color: #102A43; font-weight: 600;">{val.get("value", "")}</td>
+                <td style="padding: 12px; font-size: 13px; color: #486581;">{val.get("unit", "") or "—"}</td>
+                <td style="padding: 12px; font-size: 13px; color: #486581;">{val.get("reference", "") or "—"}</td>
+                <td style="padding: 12px; font-size: 13px;">{flag_badge(val.get("flag", ""))}</td>
+            </tr>
+        '''
+    
+    table_html += '</tbody></table>'
+    st.markdown(table_html, unsafe_allow_html=True)
 
 
 def render_sources(sources: list[dict]) -> None:
@@ -96,34 +96,14 @@ def call_report_api(file_obj=None, raw_text: str = "") -> dict:
 # Page config
 st.set_page_config(page_title="Report Analyzer", layout="wide", page_icon="📋")
 
-# Custom CSS
-st.markdown("""
-<style>
-    .stButton > button {
-        width: 100%;
-        background-color: #2E7D32;
-        color: white;
-        font-weight: 600;
-        border-radius: 8px;
-        padding: 12px;
-        border: none;
-    }
-    .stButton > button:hover {
-        background-color: #1B5E20;
-    }
-    h1 {
-        color: #1565C0;
-        font-weight: 700;
-    }
-    h2, h3 {
-        color: #424242;
-        font-weight: 600;
-    }
-</style>
-""", unsafe_allow_html=True)
+# Load custom CSS
+load_css()
 
-st.title("📋 Report Analyzer")
-st.caption("Upload a medical report, prescription, or lab result for structured extraction and grounded explanation.")
+# Sidebar
+render_sidebar_status()
+
+# Main content
+page_header("Report Analyzer", "Upload medical reports for structured extraction and analysis")
 
 left, right = st.columns([1, 1.25], gap="large")
 
@@ -163,7 +143,7 @@ with right:
                     result = call_report_api(file_obj=uploaded_file, raw_text=raw_text)
 
                 confidence = float(result.get("confidence", 0.0))
-                render_confidence_badge(confidence)
+                confidence_badge(confidence)
 
                 col1, col2 = st.columns([1.2, 1], gap="large")
 

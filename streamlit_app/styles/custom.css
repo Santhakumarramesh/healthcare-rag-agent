@@ -1,0 +1,247 @@
+/* Clinical SaaS Theme - Professional Healthcare UI */
+
+/* Import Inter font */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* Global styles */
+* {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* Main container */
+.block-container {
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+    max-width: 1400px;
+}
+
+/* Buttons */
+.stButton > button {
+    background-color: #0F4C81;
+    color: white;
+    font-weight: 600;
+    border-radius: 8px;
+    padding: 10px 24px;
+    border: none;
+    transition: all 0.2s;
+    font-size: 14px;
+}
+
+.stButton > button:hover {
+    background-color: #0C3B63;
+    box-shadow: 0 2px 8px rgba(15, 76, 129, 0.2);
+}
+
+/* Secondary button */
+.stButton.secondary > button {
+    background-color: white;
+    color: #0F4C81;
+    border: 1px solid #D9E2EC;
+}
+
+.stButton.secondary > button:hover {
+    background-color: #F7FAFC;
+    border-color: #0F4C81;
+}
+
+/* Headers */
+h1 {
+    color: #102A43;
+    font-weight: 700;
+    font-size: 28px;
+    margin-bottom: 8px;
+}
+
+h2 {
+    color: #102A43;
+    font-weight: 600;
+    font-size: 20px;
+    margin-top: 24px;
+    margin-bottom: 12px;
+}
+
+h3 {
+    color: #486581;
+    font-weight: 600;
+    font-size: 16px;
+    margin-top: 16px;
+    margin-bottom: 8px;
+}
+
+/* Sidebar */
+[data-testid="stSidebar"] {
+    background-color: #FFFFFF;
+    border-right: 1px solid #D9E2EC;
+}
+
+[data-testid="stSidebar"] h1 {
+    font-size: 18px;
+    font-weight: 700;
+    color: #0F4C81;
+}
+
+/* Cards */
+.card {
+    background: white;
+    border: 1px solid #D9E2EC;
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.card-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #102A43;
+    margin-bottom: 12px;
+}
+
+/* Metric cards */
+.metric-card {
+    background: white;
+    border: 1px solid #D9E2EC;
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+}
+
+.metric-value {
+    font-size: 32px;
+    font-weight: 700;
+    color: #0F4C81;
+    margin: 8px 0;
+}
+
+.metric-label {
+    font-size: 13px;
+    color: #486581;
+    font-weight: 500;
+}
+
+/* Status pills */
+.status-pill {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.status-success {
+    background: #E6F4EA;
+    color: #2F855A;
+}
+
+.status-warning {
+    background: #FFF4E5;
+    color: #B7791F;
+}
+
+.status-danger {
+    background: #FDECEC;
+    color: #C53030;
+}
+
+/* Tables */
+.stDataFrame {
+    border: 1px solid #D9E2EC;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.stDataFrame table {
+    font-size: 14px;
+}
+
+.stDataFrame th {
+    background-color: #F7FAFC;
+    color: #486581;
+    font-weight: 600;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Input fields */
+.stTextInput > div > div > input,
+.stTextArea > div > div > textarea {
+    border: 1px solid #D9E2EC;
+    border-radius: 8px;
+    font-size: 14px;
+    padding: 10px 14px;
+}
+
+.stTextInput > div > div > input:focus,
+.stTextArea > div > div > textarea:focus {
+    border-color: #0F4C81;
+    box-shadow: 0 0 0 2px rgba(15, 76, 129, 0.1);
+}
+
+/* File uploader */
+[data-testid="stFileUploader"] {
+    border: 2px dashed #D9E2EC;
+    border-radius: 12px;
+    padding: 32px;
+    text-align: center;
+    background: #F7FAFC;
+}
+
+/* Expander */
+.streamlit-expanderHeader {
+    background-color: #F7FAFC;
+    border: 1px solid #D9E2EC;
+    border-radius: 8px;
+    font-weight: 600;
+    color: #102A43;
+}
+
+/* Info/Warning/Error boxes */
+.stAlert {
+    border-radius: 8px;
+    border: none;
+}
+
+/* Remove default spacing */
+.element-container {
+    margin-bottom: 0;
+}
+
+/* Tabs */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 8px;
+}
+
+.stTabs [data-baseweb="tab"] {
+    background-color: white;
+    border: 1px solid #D9E2EC;
+    border-radius: 8px;
+    padding: 8px 20px;
+    font-weight: 600;
+    color: #486581;
+}
+
+.stTabs [aria-selected="true"] {
+    background-color: #0F4C81;
+    color: white;
+    border-color: #0F4C81;
+}
+
+/* Radio buttons */
+.stRadio > div {
+    gap: 12px;
+}
+
+.stRadio label {
+    background: white;
+    border: 1px solid #D9E2EC;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-weight: 500;
+}
+
+/* Selectbox */
+.stSelectbox > div > div {
+    border: 1px solid #D9E2EC;
+    border-radius: 8px;
+}
