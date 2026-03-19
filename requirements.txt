@@ -37,6 +37,9 @@ httpx==0.28.1
 loguru==0.7.3
 prometheus-client==0.22.0
 
+# Data Visualization
+plotly==5.24.1
+
 # Multi-Agent External Tools (optional — lazy-imported, not required on Render)
 # tavily-python==0.7.23
 # langchain-nvidia-ai-endpoints==1.2.1

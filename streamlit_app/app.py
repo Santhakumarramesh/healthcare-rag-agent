@@ -9,6 +9,8 @@ import json
 import time
 import os
 import uuid
+import plotly.graph_objects as go
+import plotly.express as px
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -419,6 +421,7 @@ header {visibility: hidden;}
     border: 1px solid var(--border);
     border-radius: 12px;
     padding: 24px;
+    position: relative;
 }
 
 .metric-value {
@@ -435,6 +438,171 @@ header {visibility: hidden;}
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.05em;
+}
+
+.metric-trend {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.trend-up {
+    color: var(--success);
+}
+
+.trend-down {
+    color: var(--danger);
+}
+
+.trend-arrow {
+    font-size: 1.2rem;
+}
+
+/* Top header bar */
+.top-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 1rem 2rem;
+    margin: -2rem -2rem 2rem -2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.header-search {
+    flex: 1;
+    max-width: 500px;
+    margin: 0 2rem;
+}
+
+.header-search input {
+    width: 100%;
+    padding: 10px 16px 10px 40px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.95rem;
+    background: var(--background);
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.header-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: var(--background);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.header-icon:hover {
+    background: var(--border);
+}
+
+.user-profile {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    background: var(--background);
+    cursor: pointer;
+}
+
+.user-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 600;
+    font-size: 0.875rem;
+}
+
+/* Data tables */
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+}
+
+.data-table thead {
+    background: var(--background);
+}
+
+.data-table th {
+    padding: 14px 16px;
+    text-align: left;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 2px solid var(--border);
+}
+
+.data-table td {
+    padding: 14px 16px;
+    font-size: 0.95rem;
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border);
+}
+
+.data-table tbody tr:nth-child(even) {
+    background: var(--background);
+}
+
+.data-table tbody tr:hover {
+    background: #F0FAFB;
+}
+
+/* Avatar in tables */
+.table-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 10px;
+}
+
+/* Status badges in tables */
+.status-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.status-badge.success {
+    background: #E6F4EA;
+    color: var(--success);
+}
+
+.status-badge.warning {
+    background: #FFF4E5;
+    color: var(--warning);
+}
+
+.status-badge.danger {
+    background: #FEE;
+    color: var(--danger);
 }
 
 /* Report upload box */
@@ -684,6 +852,97 @@ with st.sidebar:
 # HELPER FUNCTIONS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+def create_circular_gauge(value, title, color="#2CB1BC"):
+    """Create a circular gauge chart using Plotly"""
+    fig = go.Figure(go.Indicator(
+        mode = "gauge+number",
+        value = value,
+        domain = {'x': [0, 1], 'y': [0, 1]},
+        title = {'text': title, 'font': {'size': 16, 'color': '#4a5568'}},
+        number = {'suffix': "%", 'font': {'size': 32, 'color': '#1a202c'}},
+        gauge = {
+            'axis': {'range': [None, 100], 'tickwidth': 1, 'tickcolor': "#D9E6F2"},
+            'bar': {'color': color},
+            'bgcolor': "white",
+            'borderwidth': 2,
+            'bordercolor': "#D9E6F2",
+            'steps': [
+                {'range': [0, 60], 'color': '#FEE'},
+                {'range': [60, 80], 'color': '#FFF4E5'},
+                {'range': [80, 100], 'color': '#E6F4EA'}
+            ],
+            'threshold': {
+                'line': {'color': color, 'width': 4},
+                'thickness': 0.75,
+                'value': value
+            }
+        }
+    ))
+    
+    fig.update_layout(
+        height=250,
+        margin=dict(l=20, r=20, t=50, b=20),
+        paper_bgcolor='rgba(0,0,0,0)',
+        font={'family': 'Inter, sans-serif'}
+    )
+    
+    return fig
+
+def create_trend_chart(data, title):
+    """Create a line chart for trends"""
+    fig = px.line(
+        x=list(range(len(data))),
+        y=data,
+        title=title,
+        labels={'x': 'Time', 'y': 'Value'}
+    )
+    
+    fig.update_traces(
+        line_color='#2CB1BC',
+        line_width=3,
+        mode='lines+markers',
+        marker=dict(size=8, color='#0F4C81')
+    )
+    
+    fig.update_layout(
+        height=200,
+        margin=dict(l=20, r=20, t=40, b=20),
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        font={'family': 'Inter, sans-serif'},
+        xaxis=dict(showgrid=False),
+        yaxis=dict(showgrid=True, gridcolor='#D9E6F2')
+    )
+    
+    return fig
+
+def create_bar_chart(categories, values, title):
+    """Create a bar chart"""
+    fig = px.bar(
+        x=categories,
+        y=values,
+        title=title,
+        labels={'x': 'Category', 'y': 'Count'}
+    )
+    
+    fig.update_traces(
+        marker_color='#2CB1BC',
+        marker_line_color='#0F4C81',
+        marker_line_width=1.5
+    )
+    
+    fig.update_layout(
+        height=250,
+        margin=dict(l=20, r=20, t=40, b=20),
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        font={'family': 'Inter, sans-serif'},
+        xaxis=dict(showgrid=False),
+        yaxis=dict(showgrid=True, gridcolor='#D9E6F2')
+    )
+    
+    return fig
+
 def render_confidence_badge(score):
     """Render confidence badge with color coding"""
     if score >= 0.8:
@@ -697,6 +956,22 @@ def render_confidence_badge(score):
         label = "Low Confidence"
     
     return f'<div class="confidence-badge {badge_class}">{int(score*100)}% {label}</div>'
+
+def get_avatar_svg(name, index=0):
+    """Generate a simple SVG avatar with initials"""
+    colors = ['#0F4C81', '#2CB1BC', '#2F855A', '#DD6B20', '#C53030']
+    color = colors[index % len(colors)]
+    initials = ''.join([word[0].upper() for word in name.split()[:2]])
+    
+    return f"""
+    <svg width="40" height="40" viewBox="0 0 40 40">
+        <circle cx="20" cy="20" r="20" fill="{color}"/>
+        <text x="20" y="26" text-anchor="middle" fill="white" 
+              font-family="Inter, sans-serif" font-size="14" font-weight="600">
+            {initials}
+        </text>
+    </svg>
+    """
 
 def render_clinical_answer_card(response_data):
     """Render structured clinical answer card"""
@@ -777,6 +1052,26 @@ def render_clinical_answer_card(response_data):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 if st.session_state.current_page == "home":
+    # Top header bar
+    st.markdown("""
+    <div class="top-header">
+        <div class="app-logo">
+            <div class="app-logo-icon">HC</div>
+            <div class="app-logo-text">Healthcare Copilot</div>
+        </div>
+        <div class="header-search">
+            <input type="text" placeholder="Search patients, reports, or queries..." />
+        </div>
+        <div class="header-actions">
+            <div class="header-icon">🔔</div>
+            <div class="user-profile">
+                <div class="user-avatar">DR</div>
+                <span>Dr. Smith</span>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
     # Hero section
     st.markdown("""
     <div class="hero-section">
@@ -985,13 +1280,18 @@ elif st.session_state.current_page == "dashboard":
     try:
         stats = requests.get(f"{API_BASE}/stats", timeout=3).json()
         
-        # KPI Cards
+        # KPI Cards with trend indicators
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
+            total_queries = stats.get('cache', {}).get('total_requests', 0)
             st.markdown(f"""
             <div class="metric-card">
-                <div class="metric-value">{stats.get('cache', {}).get('total_requests', 0)}</div>
+                <div class="metric-trend trend-up">
+                    <span class="trend-arrow">↑</span>
+                    <span>12%</span>
+                </div>
+                <div class="metric-value">{total_queries}</div>
                 <div class="metric-label">Total Queries</div>
             </div>
             """, unsafe_allow_html=True)
@@ -1000,6 +1300,10 @@ elif st.session_state.current_page == "dashboard":
             hit_rate = stats.get('cache', {}).get('hit_rate', 0)
             st.markdown(f"""
             <div class="metric-card">
+                <div class="metric-trend trend-up">
+                    <span class="trend-arrow">↑</span>
+                    <span>8%</span>
+                </div>
                 <div class="metric-value">{int(hit_rate*100)}%</div>
                 <div class="metric-label">Cache Hit Rate</div>
             </div>
@@ -1008,6 +1312,10 @@ elif st.session_state.current_page == "dashboard":
         with col3:
             st.markdown(f"""
             <div class="metric-card">
+                <div class="metric-trend trend-down">
+                    <span class="trend-arrow">↓</span>
+                    <span>5%</span>
+                </div>
                 <div class="metric-value">6.2s</div>
                 <div class="metric-label">Avg Latency</div>
             </div>
@@ -1016,10 +1324,50 @@ elif st.session_state.current_page == "dashboard":
         with col4:
             st.markdown(f"""
             <div class="metric-card">
+                <div class="metric-trend trend-up">
+                    <span class="trend-arrow">↑</span>
+                    <span>3%</span>
+                </div>
                 <div class="metric-value">87%</div>
                 <div class="metric-label">Avg Confidence</div>
             </div>
             """, unsafe_allow_html=True)
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # Circular gauges
+        st.markdown("### System Health")
+        col_g1, col_g2, col_g3 = st.columns(3)
+        
+        with col_g1:
+            gauge_confidence = create_circular_gauge(87, "Confidence Score", "#2CB1BC")
+            st.plotly_chart(gauge_confidence, use_container_width=True)
+        
+        with col_g2:
+            gauge_quality = create_circular_gauge(92, "Response Quality", "#2F855A")
+            st.plotly_chart(gauge_quality, use_container_width=True)
+        
+        with col_g3:
+            gauge_uptime = create_circular_gauge(99, "System Uptime", "#0F4C81")
+            st.plotly_chart(gauge_uptime, use_container_width=True)
+        
+        st.markdown("---")
+        
+        # Charts
+        col_chart1, col_chart2 = st.columns(2)
+        
+        with col_chart1:
+            # Query trend chart
+            trend_data = [45, 52, 48, 65, 58, 72, 68, 75]
+            trend_chart = create_trend_chart(trend_data, "Query Volume Trend")
+            st.plotly_chart(trend_chart, use_container_width=True)
+        
+        with col_chart2:
+            # Query categories bar chart
+            categories = ["Drug Info", "Symptoms", "Lab Results", "Research"]
+            values = [35, 28, 22, 15]
+            bar_chart = create_bar_chart(categories, values, "Query Categories")
+            st.plotly_chart(bar_chart, use_container_width=True)
         
         st.markdown("---")
         
@@ -1050,6 +1398,77 @@ elif st.session_state.current_page == "history":
     if st.session_state.messages:
         st.markdown("### Recent Conversations")
         
+        # Create data table
+        table_html = """
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>User</th>
+                    <th>Query</th>
+                    <th>Confidence</th>
+                    <th>Intent</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+        """
+        
+        user_queries = []
+        for idx, msg in enumerate(st.session_state.messages):
+            if msg["role"] == "user":
+                user_queries.append((idx, msg))
+        
+        for table_idx, (msg_idx, msg) in enumerate(reversed(user_queries[-10:])):
+            avatar_svg = get_avatar_svg("Patient User", table_idx)
+            query_preview = msg['content'][:50] + "..." if len(msg['content']) > 50 else msg['content']
+            
+            # Get response data if available
+            confidence = "N/A"
+            intent = "N/A"
+            status_class = "warning"
+            status_text = "Pending"
+            
+            if msg_idx + 1 < len(st.session_state.messages):
+                response = st.session_state.messages[msg_idx + 1]
+                if response["role"] == "assistant":
+                    confidence_val = response["content"].get('quality_score', 0)
+                    confidence = f"{int(confidence_val*100)}%"
+                    intent = response["content"].get('intent', 'N/A')
+                    
+                    if confidence_val >= 0.8:
+                        status_class = "success"
+                        status_text = "Completed"
+                    elif confidence_val >= 0.6:
+                        status_class = "warning"
+                        status_text = "Review"
+                    else:
+                        status_class = "danger"
+                        status_text = "Low Quality"
+            
+            table_html += f"""
+                <tr>
+                    <td>
+                        <span class="table-avatar">{avatar_svg}</span>
+                        Patient
+                    </td>
+                    <td>{query_preview}</td>
+                    <td>{confidence}</td>
+                    <td>{intent}</td>
+                    <td><span class="status-badge {status_class}">{status_text}</span></td>
+                </tr>
+            """
+        
+        table_html += """
+            </tbody>
+        </table>
+        """
+        
+        st.markdown(table_html, unsafe_allow_html=True)
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # Expandable details
+        st.markdown("### Conversation Details")
         for idx, msg in enumerate(reversed(st.session_state.messages[-10:])):
             if msg["role"] == "user":
                 with st.expander(f"{msg['content'][:60]}..."):
