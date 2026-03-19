@@ -12,6 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from components.layout import load_css, render_sidebar_status
+from components.ui_helpers import inject_global_styles, render_hero
 
 # Page config
 st.set_page_config(
@@ -23,6 +24,7 @@ st.set_page_config(
 
 # Load custom CSS
 load_css()
+inject_global_styles()
 
 # Initialize session state
 if "session_id" not in st.session_state:
@@ -34,6 +36,22 @@ if "history" not in st.session_state:
 
 if "ui_mode" not in st.session_state:
     st.session_state.ui_mode = "patient"
+
+if "care_mode" not in st.session_state:
+    st.session_state.care_mode = None
+
+if "followup_profile" not in st.session_state:
+    st.session_state.followup_profile = {
+        "condition_name": "",
+        "diagnosis_date": None,
+        "primary_symptoms": "",
+        "current_medications": "",
+        "doctor_notes": "",
+        "is_initialized": False,
+    }
+
+if "daily_updates" not in st.session_state:
+    st.session_state.daily_updates = []
 
 # Sidebar navigation
 st.sidebar.markdown('''
@@ -49,6 +67,7 @@ st.sidebar.markdown("---")
 st.sidebar.page_link("pages/1_Dashboard.py", label="Dashboard")
 st.sidebar.page_link("pages/2_Ask_AI.py", label="Ask AI")
 st.sidebar.page_link("pages/3_Report_Analyzer.py", label="Report Analyzer")
+st.sidebar.page_link("pages/7_Serious_Condition_Follow_Up.py", label="Condition Follow-up")
 st.sidebar.page_link("pages/4_Records_History.py", label="Records & History")
 st.sidebar.page_link("pages/5_Monitoring.py", label="Monitoring")
 st.sidebar.page_link("pages/6_Settings.py", label="Settings")
@@ -56,28 +75,117 @@ st.sidebar.page_link("pages/6_Settings.py", label="Settings")
 # Sidebar status
 render_sidebar_status()
 
-# Main content - redirect to dashboard
-st.markdown('''
-<div style="text-align: center; padding: 100px 0;">
-    <div style="font-size: 48px; margin-bottom: 24px; color: #0F4C81; font-weight: 700;">⚕</div>
-    <div style="font-size: 32px; font-weight: 700; color: #102A43; margin-bottom: 12px;">Healthcare AI Platform</div>
-    <div style="font-size: 16px; color: #486581; margin-bottom: 32px;">Production-style medical AI system</div>
-</div>
-''', unsafe_allow_html=True)
+# Main content - mode selector
+render_hero(
+    "AI Healthcare Copilot",
+    "Evidence-backed medical Q&A, report analysis, and structured follow-up workflows designed for safer, clearer health support.",
+)
 
-col1, col2, col3 = st.columns([1, 1, 1])
+st.markdown('<div class="section-title">Choose Care Mode</div>', unsafe_allow_html=True)
 
-with col1:
-    if st.button("View Dashboard", use_container_width=True):
-        st.switch_page("pages/1_Dashboard.py")
+col_a, col_b, col_c, col_d = st.columns(4, gap="large")
 
-with col2:
-    if st.button("Ask AI", use_container_width=True):
+with col_a:
+    st.markdown(
+        """
+        <div class="mode-card">
+            <div class="mode-title">General Medical Q&A</div>
+            <div class="mode-desc">
+                Ask grounded health questions and receive structured, evidence-aware responses.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    if st.button("Open General Q&A", key="mode_general", use_container_width=True):
+        st.session_state.care_mode = "general_qa"
         st.switch_page("pages/2_Ask_AI.py")
 
-with col3:
-    if st.button("Analyze Report", use_container_width=True):
+with col_b:
+    st.markdown(
+        """
+        <div class="mode-card">
+            <div class="mode-title">Report Analyzer</div>
+            <div class="mode-desc">
+                Upload and interpret reports, summarize findings, and review key extracted values.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    if st.button("Open Report Analyzer", key="mode_report", use_container_width=True):
+        st.session_state.care_mode = "report_analyzer"
         st.switch_page("pages/3_Report_Analyzer.py")
+
+with col_c:
+    st.markdown(
+        """
+        <div class="mode-card">
+            <div class="mode-title">Serious Condition Follow-up</div>
+            <div class="mode-desc">
+                Track daily condition updates, compare with previous entries, and surface worsening-risk patterns.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    if st.button("Start Follow-up Mode", key="mode_followup", use_container_width=True):
+        st.session_state.care_mode = "serious_followup"
+        st.switch_page("pages/7_Serious_Condition_Follow_Up.py")
+
+with col_d:
+    st.markdown(
+        """
+        <div class="mode-card">
+            <div class="mode-title">Research Summary</div>
+            <div class="mode-desc">
+                Summarize clinical information, medical knowledge, and evidence-backed reference material.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    if st.button("Open Research Summary", key="mode_research", use_container_width=True):
+        st.session_state.care_mode = "research_summary"
+        st.switch_page("pages/2_Ask_AI.py")
+
+st.markdown("<br>", unsafe_allow_html=True)
+st.markdown('<div class="section-title">Recommended Starting Point</div>', unsafe_allow_html=True)
+
+left, right = st.columns([1.4, 1], gap="large")
+
+with left:
+    st.markdown(
+        """
+        <div class="panel-card">
+            <div class="mini-heading">Daily Follow-up for High-Risk or Serious Conditions</div>
+            <div class="subtle-text">
+                Use this mode for users who are recovering after hospitalization, living with a serious ongoing condition,
+                or requiring daily monitoring for worsening symptoms, medication adherence, or physician-directed observation.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    if st.button("Go to Serious Condition Follow-up", key="goto_followup_big", use_container_width=False):
+        st.session_state.care_mode = "serious_followup"
+        st.switch_page("pages/7_Serious_Condition_Follow_Up.py")
+
+with right:
+    st.markdown(
+        f"""
+        <div class="panel-card">
+            <div class="mini-heading">Current Session</div>
+            <div class="subtle-text">
+                Selected mode: {st.session_state.care_mode or "Not selected"}
+            </div>
+            <div class="subtle-text" style="margin-top:8px;">
+                Daily updates saved: {len(st.session_state.daily_updates)}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 # Footer
 st.markdown("<br><br><br>", unsafe_allow_html=True)

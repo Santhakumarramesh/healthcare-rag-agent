@@ -34,13 +34,16 @@ page_header(
 )
 
 # Hero buttons
-col1, col2, col3, col4 = st.columns([1, 1, 1, 2])
+col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
 with col1:
     if st.button("Analyze Report", use_container_width=True):
         st.switch_page("pages/3_Report_Analyzer.py")
 with col2:
     if st.button("Ask AI", use_container_width=True):
         st.switch_page("pages/2_Ask_AI.py")
+with col3:
+    if st.button("Condition Follow-up", use_container_width=True):
+        st.switch_page("pages/7_Serious_Condition_Follow_Up.py")
 
 st.markdown("<br>", unsafe_allow_html=True)
 
