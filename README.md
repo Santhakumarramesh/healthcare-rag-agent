@@ -25,6 +25,8 @@ An intelligent healthcare assistant that:
 - ⚠️ **Emergency detection** for 14 critical symptoms
 - 🔐 **Enterprise security** with authentication and audit logs
 
+![AI Healthcare Copilot Dashboard](docs/screenshots/dashboard.png)
+
 ---
 
 ## ✨ Key Features
