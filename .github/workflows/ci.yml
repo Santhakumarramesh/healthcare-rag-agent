@@ -1,6 +1,205 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Healthcare RAG Agent — CI/CD Pipeline
+#
+# Flow (main branch push):
+#   lint → test → docker-build → docker-push → deploy-render
+#
+# Flow (PR / develop push):
+#   lint → test → docker-build  (no push, no deploy)
+#
+# Required GitHub Secrets:
+#   RENDER_DEPLOY_HOOK_API   — from Render → healthcare-rag-api → Settings → Deploy Hook
+#   RENDER_DEPLOY_HOOK_UI    — from Render → healthcare-rag-ui  → Settings → Deploy Hook
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: CI / CD
+
 on:
   push:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
   workflow_dispatch:
+
+# Cancel redundant runs on the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.11"
+  IMAGE_NAME: healthcare-rag-api
+
+jobs:
+  # ── Job 1: Lint & format check ────────────────────────────────────────────
+  lint:
+    name: Lint & Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install lint tools
+        run: pip install ruff
+
+      - name: Run ruff (linter + formatter check)
+        run: ruff check . --output-format=github
+
+  # ── Job 2: Unit tests ─────────────────────────────────────────────────────────
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint
+
+    env:
+      OPENAI_API_KEY: sk-test-placeholder
+      JWT_SECRET_KEY: ci-test-secret-key-32-chars-long!!
+      CORS_ORIGINS: http://localhost:8501
+      APP_ENV: test
+      LOG_LEVEL: WARNING
+      FAISS_INDEX_PATH: ./vectorstore/faiss_index
+      VECTOR_STORE_TYPE: faiss
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pytest pytest-asyncio
+
+      - name: Create required directories
+        run: mkdir -p vectorstore/faiss_index logs
+
+      - name: Run tests
+        run: pytest tests/ -v --tb=short
+
+  # ── Job 3: Docker build (all branches) ─────────────────────────────────────────
+  docker-build:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image (no push — smoke test only)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          tags: ${{ env.IMAGE_NAME }}:ci-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ── Job 4: Push to GHCR (main only) ────────────────────────────────────────────
+  docker-push:
+    name: Push to GitHub Container Registry
+    runs-on: ubuntu-latest
+    needs: docker-build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest
+            ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ── Job 5: Deploy to Render (main only) ──────────────────────────────────────────
+  deploy-render:
+    name: Deploy to Render
+    runs-on: ubuntu-latest
+    needs: docker-push
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    environment:
+      name: production
+      url: https://healthcare-rag-api.onrender.com
+
+    steps:
+      - name: Trigger API deploy
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_API }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "⚠️  RENDER_DEPLOY_HOOK_API secret not set — skipping API deploy trigger."
+            echo "    Add it at: GitHub repo → Settings → Secrets → Actions → New secret"
+          else
+            echo "🚀 Triggering Render API deploy..."
+            response=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$HOOK")
+            if [ "$response" = "200" ] || [ "$response" = "201" ]; then
+              echo "✅ API deploy triggered (HTTP $response)"
+            else
+              echo "❌ API deploy hook returned HTTP $response"
+              exit 1
+            fi
+          fi
+
+      - name: Trigger UI deploy
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_UI }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "⚠️  RENDER_DEPLOY_HOOK_UI secret not set — skipping UI deploy trigger."
+          else
+            echo "🚀 Triggering Render UI deploy..."
+            response=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$HOOK")
+            if [ "$response" = "200" ] || [ "$response" = "201" ]; then
+              echo "✅ UI deploy triggered (HTTP $response)"
+            else
+              echo "❌ UI deploy hook returned HTTP $response"
+              exit 1
+            fi
+          fi
+
+      - name: Wait and verify API health
+        run: |
+          echo "⏳ Waiting 3 min for Render to build and start..."
+          sleep 180
+          echo "🔍 Checking API health..."
+          for attempt in 1 2 3; do
+            status=$(curl -s -o /dev/null -w "%{http_code}" \
+              https://healthcare-rag-api.onrender.com/health)
+            if [ "$status" = "200" ]; then
+              echo "✅ API is healthy (attempt $attempt)"
+              exit 0
+            fi
+            echo "   Attempt $attempt: HTTP $status — retrying in 30s..."
+            sleep 30
+          done
+          echo "❌ API health check failed after 3 attempts."
+          exit 1
