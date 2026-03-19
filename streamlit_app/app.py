@@ -195,8 +195,8 @@ st.markdown("""<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:1re
 </div>""", unsafe_allow_html=True)
 
 # ── Tabs ───────────────────────────────────────────────────────────────────────
-tab_chat, tab_arch, tab_records = st.tabs(
-    ["💬 Ask MediAssist", "🔬 How It Works", "📋 My Medical Records"])
+tab_chat, tab_arch, tab_risk, tab_records = st.tabs(
+    ["💬 Ask MediAssist", "🔬 How It Works", "📊 Risk Assessment", "📋 My Medical Records"])
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -433,13 +433,119 @@ POST /local-model/toggle → switch between cloud and on-device LLM
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 3 — My Medical Records
+# TAB 3 — Risk Assessment (ML + LLM)
+# ══════════════════════════════════════════════════════════════════════════════
+with tab_risk:
+    st.markdown("### 📊 Patient Risk Assessment")
+    st.markdown(
+        "Enter patient metrics to get an ML-based risk score with LLM-generated explanation. "
+        "Combines clinical scoring with GPT-4o-mini reasoning."
+    )
+    st.markdown('<div class="disclaimer">⚕️ <strong>Not a medical device.</strong> '
+                'For informational purposes only. Always consult a healthcare provider.</div>',
+                unsafe_allow_html=True)
+    st.markdown("")
+
+    col_form, col_result = st.columns([1, 1], gap="large")
+
+    with col_form:
+        st.markdown("#### Patient Metrics")
+        age      = st.slider("Age (years)",             18, 100, 45)
+        bmi      = st.slider("BMI",                     15.0, 50.0, 25.0, 0.5)
+        sbp      = st.slider("Systolic BP (mmHg)",      80, 220, 120)
+        glucose  = st.slider("Fasting glucose (mg/dL)", 50, 400, 95)
+        hba1c    = st.slider("HbA1c (%)",               4.0, 15.0, 5.5, 0.1)
+        chol     = st.slider("Total cholesterol (mg/dL)", 100, 400, 180)
+
+        st.markdown("#### Lifestyle Factors")
+        smoking  = st.radio("Smoking status", [0, 1],
+                             format_func=lambda x: "Non-smoker" if x==0 else "Smoker",
+                             horizontal=True)
+        fam_hist = st.radio("Family history of diabetes", [0, 1],
+                             format_func=lambda x: "No" if x==0 else "Yes",
+                             horizontal=True)
+        activity = st.radio("Physical activity level", [0, 1, 2],
+                             format_func=lambda x: ["Low","Moderate","High"][x],
+                             horizontal=True)
+
+        assess_btn = st.button("🔬 Run Risk Assessment", use_container_width=True, type="primary")
+
+    with col_result:
+        if assess_btn:
+            payload = {"age":age,"bmi":bmi,"systolic_bp":sbp,"glucose":glucose,
+                       "hba1c":hba1c,"cholesterol":chol,"smoking":smoking,
+                       "family_history":fam_hist,"physical_activity":activity}
+            with st.spinner("Running ML scoring + LLM explanation…"):
+                try:
+                    r = requests.post(f"{API_BASE}/risk/assess", json=payload, timeout=30)
+                    if r.ok:
+                        res = r.json()
+                        prob   = res["probability"]
+                        level  = res["risk_level"]
+                        color_map = {"Low":"#155724","Moderate":"#856404",
+                                     "High":"#a04000","Very High":"#721c24"}
+                        bg_map    = {"Low":"#d4edda","Moderate":"#fff3cd",
+                                     "High":"#ffe5d0","Very High":"#f8d7da"}
+                        col = color_map.get(level,"#333")
+                        bg  = bg_map.get(level,"#f8f9fa")
+
+                        # Big risk gauge
+                        st.markdown(f"""
+<div style="background:{bg};border-radius:12px;padding:1.2rem 1.5rem;text-align:center;margin-bottom:1rem;">
+  <div style="font-size:2.8rem;font-weight:700;color:{col};">{prob:.0%}</div>
+  <div style="font-size:1.1rem;font-weight:600;color:{col};">{level} Risk</div>
+  <div style="font-size:.85rem;color:{col};margin-top:.3rem;">{res['risk_summary']}</div>
+</div>""", unsafe_allow_html=True)
+
+                        # Top contributing factors
+                        st.markdown("**Top contributing factors:**")
+                        factors = res.get("top_factors", [])
+                        max_pts = factors[0]["points"] if factors else 1
+                        for f in factors[:5]:
+                            pct = f["points"] / max_pts if max_pts > 0 else 0
+                            bar = "█" * int(pct * 10) + "░" * (10 - int(pct * 10))
+                            st.markdown(
+                                f"`{bar}` **{f['factor']}** — {f['points']} pts"
+                            )
+
+                        # LLM explanation
+                        st.markdown("---")
+                        st.markdown("**Clinical explanation:**")
+                        st.markdown(
+                            f'<div class="chat-msg-ai">{res["explanation"]}</div>',
+                            unsafe_allow_html=True)
+                    else:
+                        st.error(f"Assessment failed: {r.json().get('detail', r.text)}")
+                except Exception as e:
+                    st.error(f"Connection error: {e}")
+        else:
+            st.markdown("#### How This Works")
+            st.markdown("""
+This combines **two AI techniques** in one pipeline:
+
+**1 — Clinical risk scoring (ML layer)**
+Implements a Findrisc-inspired algorithm that scores 9 patient factors
+and converts them to a diabetes/cardiovascular risk probability.
+In a production system, this would be replaced by a trained XGBoost
+model on patient outcome data.
+
+**2 — LLM explanation (GenAI layer)**
+The risk score and top contributing factors are passed to GPT-4o-mini
+which generates a plain-English explanation and actionable recommendations
+personalized to the patient's specific risk profile.
+
+**Why this matters for interviews:**
+Most candidates do pure RAG or pure ML. Combining both in one pipeline
+is rare and directly maps to how real clinical decision support systems work.
+""")
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 4 — My Medical Records  (was tab_records)
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_records:
     sid = st.session_state.session_id
     st.markdown('<div class="disclaimer">🔒 <strong>Privacy:</strong> Records are processed in-memory '
-                'for this session only and never saved to disk. Data is sent to OpenAI for analysis.</div>',
-                unsafe_allow_html=True)
+                'for this session only and never saved to disk.</div>', unsafe_allow_html=True)
     st.markdown("")
 
     left, right = st.columns([1,1], gap="large")

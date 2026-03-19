@@ -228,6 +228,43 @@ async def root():
     return {"name": "Healthcare RAG Multi-Agent API", "version": "1.0.0", "docs": "/docs"}
 
 
+# ── Risk Assessment Endpoint ──────────────────────────────────────────────────
+
+class RiskInput(BaseModel):
+    age:               float = Field(45,  ge=18,  le=100)
+    bmi:               float = Field(25.0, ge=15, le=50)
+    systolic_bp:       float = Field(120, ge=80,  le=220)
+    glucose:           float = Field(95,  ge=50,  le=400)
+    hba1c:             float = Field(5.5, ge=4,   le=15)
+    cholesterol:       float = Field(180, ge=100, le=400)
+    smoking:           int   = Field(0,   ge=0,   le=1)
+    family_history:    int   = Field(0,   ge=0,   le=1)
+    physical_activity: int   = Field(1,   ge=0,   le=2)
+
+
+@app.post("/risk/assess", tags=["Risk Assessment"])
+async def assess_risk(inputs: RiskInput):
+    """
+    ML-based patient risk assessment with LLM explanation.
+    Combines rule-based clinical scoring with GPT-4o-mini explanation.
+    Returns risk probability, level, top contributing factors, and actionable recommendations.
+    """
+    from agents.risk_agent import run_risk_assessment
+    try:
+        result = await run_risk_assessment(inputs.model_dump())
+        return result
+    except Exception as e:
+        logger.error(f"Risk assessment error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/risk/factors", tags=["Risk Assessment"])
+async def get_risk_factors():
+    """Return the schema of input factors for the risk assessment form."""
+    from agents.risk_agent import RISK_FACTORS
+    return {"factors": RISK_FACTORS}
+
+
 # ── Knowledge Base Ingestion Endpoints ───────────────────────────────────────
 
 class IngestTextRequest(BaseModel):
