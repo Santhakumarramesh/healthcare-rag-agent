@@ -46,6 +46,8 @@ logs/
 *.log
 api.log
 ui.log
+api.log
+ui.log
 
 # macOS
 .DS_Store

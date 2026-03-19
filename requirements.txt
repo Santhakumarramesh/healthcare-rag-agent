@@ -28,8 +28,8 @@ rank-bm25==0.2.2
 # Data & Utilities
 pypdf==5.4.0
 pdfplumber==0.11.4
-pytesseract==0.3.13
-pdf2image==1.17.0
+# pytesseract==0.3.13  # requires system Tesseract binary — not on Render free tier
+# pdf2image==1.17.0    # requires system poppler — not on Render free tier
 Pillow==11.0.0
 tiktoken==0.9.0
 numpy>=1.26.4
