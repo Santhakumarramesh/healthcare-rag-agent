@@ -14,29 +14,7 @@
 
 ---
 
-## 📸 Screenshots
-
-### Dashboard
-![Dashboard](docs/screenshots/dashboard.png)
-*Main dashboard with quick actions and system overview*
-
-### Ask AI - Structured Q&A
-![Ask AI](docs/screenshots/ask-ai.png)
-*Evidence-based answers with key insights, concerns, and next steps*
-
-### Report Analyzer
-![Report Analyzer](docs/screenshots/report-analyzer.png)
-*Upload lab reports for structured extraction and AI-powered analysis*
-
-### Monitoring Dashboard
-![Monitoring](docs/screenshots/monitoring.png)
-*Real-time system metrics and performance analytics*
-
-> **Note**: Visit the [live demo](https://healthcare-rag-ui.onrender.com) to explore all features
-
----
-
-## 🎯 What It Does
+## What It Does
 
 An intelligent healthcare assistant that:
 

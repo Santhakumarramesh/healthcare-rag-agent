@@ -172,14 +172,13 @@ async def health_check():
     """
     index_path = Path(config.FAISS_INDEX_PATH)
     vs_ready = (index_path / "index.faiss").exists()
-    
-    # Calculate index size
     index_size = 0
-    if vs_ready and pipeline:
+    if vs_ready:
         try:
-            if hasattr(pipeline, 'retriever') and hasattr(pipeline.retriever, 'vectorstore'):
-                index_size = pipeline.retriever.vectorstore.index.ntotal
-        except:
+            import faiss, pickle
+            idx = faiss.read_index(str(index_path / "index.faiss"))
+            index_size = idx.ntotal
+        except Exception:
             index_size = 0
     
     return HealthResponse(
