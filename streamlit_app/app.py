@@ -1221,9 +1221,10 @@ elif st.session_state.current_page == "reports":
                         )
                         
                         if upload_resp.status_code == 200:
+                            # Analyze endpoint expects Form data, not JSON
                             analyze_resp = requests.post(
                                 f"{API_BASE}/records/analyze",
-                                json={"session_id": st.session_state.session_id},
+                                data={"session_id": st.session_state.session_id},
                                 timeout=30
                             )
                             
@@ -1231,10 +1232,14 @@ elif st.session_state.current_page == "reports":
                                 st.session_state.analysis_result = analyze_resp.json()
                                 st.success("Analysis complete!")
                                 st.rerun()
+                            else:
+                                st.error(f"Analysis failed: {analyze_resp.status_code} - {analyze_resp.text}")
                         else:
-                            st.error(f"Upload failed: {upload_resp.status_code}")
+                            st.error(f"Upload failed: {upload_resp.status_code} - {upload_resp.text}")
                     except Exception as e:
                         st.error(f"Error: {str(e)}")
+                        import traceback
+                        st.error(f"Details: {traceback.format_exc()}")
     
     with col_right:
         st.markdown("### Analysis Results")
