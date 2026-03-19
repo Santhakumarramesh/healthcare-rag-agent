@@ -1247,29 +1247,87 @@ elif st.session_state.current_page == "reports":
         if "analysis_result" in st.session_state:
             result = st.session_state.analysis_result
             
-            st.markdown("#### Detected Report Type")
-            st.info(result.get("report_type", "Medical Document"))
+            # Patient Information
+            patient_info = result.get("patient_info", {})
+            if patient_info:
+                st.markdown("#### Patient Information")
+                info_items = []
+                if patient_info.get("name"):
+                    info_items.append(f"**Name:** {patient_info['name']}")
+                if patient_info.get("dob"):
+                    info_items.append(f"**DOB:** {patient_info['dob']}")
+                if patient_info.get("record_date"):
+                    info_items.append(f"**Date:** {patient_info['record_date']}")
+                if patient_info.get("provider"):
+                    info_items.append(f"**Provider:** {patient_info['provider']}")
+                
+                if info_items:
+                    st.markdown(" | ".join(info_items))
+                st.markdown("<br>", unsafe_allow_html=True)
             
-            st.markdown("#### Important Values")
+            # Lab Values
+            st.markdown("#### Lab Values")
             labs = result.get("lab_values", [])
             if labs:
-                for lab in labs[:5]:
-                    status = "Abnormal" if lab.get("abnormal") else "Normal"
-                    st.markdown(f"**{lab.get('name')}**: {lab.get('value')} {lab.get('unit', '')} ({status})")
+                for lab in labs:
+                    status = lab.get("status", "UNKNOWN")
+                    status_color = "🟢" if status == "NORMAL" else "🔴" if status == "ABNORMAL" else "🟡"
+                    
+                    st.markdown(f"{status_color} **{lab.get('name')}**: {lab.get('value')}")
+                    if lab.get("normal_range"):
+                        st.caption(f"Normal range: {lab['normal_range']}")
+                    if lab.get("interpretation"):
+                        st.info(lab['interpretation'])
+                    st.markdown("<br>", unsafe_allow_html=True)
             else:
                 st.info("No lab values detected")
             
+            # Diagnoses
             diagnoses = result.get("diagnoses", [])
             if diagnoses:
                 st.markdown("#### Diagnoses")
                 for dx in diagnoses:
                     st.markdown(f"- {dx}")
+                st.markdown("<br>", unsafe_allow_html=True)
             
-            st.markdown("#### Simple Explanation")
-            explanation = result.get("explanation", "Analysis complete. Review the extracted values above.")
-            st.markdown(explanation)
+            # Medications
+            medications = result.get("medications", [])
+            if medications:
+                st.markdown("#### Medications")
+                for med in medications:
+                    st.markdown(f"- {med}")
+                st.markdown("<br>", unsafe_allow_html=True)
             
+            # Key Findings
+            key_findings = result.get("key_findings", "")
+            if key_findings:
+                st.markdown("#### Key Findings")
+                st.markdown(key_findings)
+                st.markdown("<br>", unsafe_allow_html=True)
+            
+            # Recommended Actions
+            actions = result.get("recommended_actions", [])
+            if actions:
+                st.markdown("#### Recommended Actions")
+                for action in actions:
+                    st.markdown(f"- {action}")
+                st.markdown("<br>", unsafe_allow_html=True)
+            
+            # Abnormal Flags
+            abnormal_flags = result.get("abnormal_flags", [])
+            if abnormal_flags:
+                st.warning("**⚠️ Abnormal Values Detected:**")
+                for flag in abnormal_flags:
+                    st.markdown(f"- {flag}")
+                st.markdown("<br>", unsafe_allow_html=True)
+            
+            # Safety Note
             st.warning("**When to Seek Medical Attention:** If you notice any abnormal values or have concerns, consult your healthcare provider immediately.")
+            
+            # Processing Time
+            latency = result.get("latency_ms", 0)
+            if latency:
+                st.caption(f"Analysis completed in {latency/1000:.2f} seconds")
         else:
             st.info("Upload a report to see analysis results here.")
 
