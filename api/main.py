@@ -22,9 +22,13 @@ from agents.rag_pipeline import HealthcareRAGPipeline
 from agents.router_agent import RouterAgent, QueryType
 from agents.reasoning_agent import reasoning_agent
 from api.records import router as records_router
+from api.auth import router as auth_router
+from api.admin import router as admin_router
 from services.memory_service import memory_service
 from services.citation_service import citation_service
 from services.monitoring_service import monitoring_service
+from services.alert_service import alert_engine
+from services.audit_service import audit_service
 from utils.config import config
 from utils.cache import response_cache
 from utils.rate_limiter import rate_limiter
@@ -87,6 +91,8 @@ app.add_middleware(
 )
 
 app.include_router(records_router)
+app.include_router(auth_router)
+app.include_router(admin_router)
 
 
 class ChatRequest(BaseModel):
@@ -110,6 +116,7 @@ class ChatResponse(BaseModel):
     routing_confidence: Optional[float] = None
     citation_summary: Optional[dict] = None
     reasoning_steps: Optional[List[dict]] = None
+    clinical_alerts: Optional[List[dict]] = None
 
 
 class HealthResponse(BaseModel):
@@ -271,7 +278,19 @@ async def chat(request: ChatRequest):
             0.2 * quality_score
         )
 
-        # 9. APPLY MULTI-STEP REASONING FOR COMPLEX QUERIES
+        # 9. CHECK FOR CLINICAL ALERTS
+        clinical_alerts = alert_engine.check_query(request.query)
+        
+        # Log alerts if any
+        for alert in clinical_alerts:
+            audit_service.log_alert(
+                user_id=client_id,
+                alert_type=alert["type"],
+                severity=alert["severity"],
+                message=alert["message"]
+            )
+        
+        # 10. APPLY MULTI-STEP REASONING FOR COMPLEX QUERIES
         reasoning_steps = []
         use_reasoning = route_info["type"] in ["symptom_check", "preventive_care"] and len(request.query.split()) > 15
         
@@ -296,7 +315,7 @@ async def chat(request: ChatRequest):
             # Update confidence with reasoning confidence
             enhanced_confidence = (enhanced_confidence + reasoning_result["confidence"]) / 2
 
-        # 10. UPDATE METRICS
+        # 11. UPDATE METRICS
         REQUEST_COUNT.labels(intent=route_info["type"]).inc()
         REQUEST_LATENCY.observe(latency_ms / 1000)
         QUALITY_SCORE_HIST.observe(enhanced_confidence)
@@ -308,6 +327,15 @@ async def chat(request: ChatRequest):
             confidence=enhanced_confidence,
             sources_count=len(formatted_citations),
             success=True
+        )
+        
+        # Log query in audit service
+        audit_service.log_query(
+            user_id=client_id,
+            query=request.query,
+            query_type=route_info["type"],
+            confidence=enhanced_confidence,
+            session_id=client_id
         )
 
         logger.info(
@@ -327,13 +355,14 @@ async def chat(request: ChatRequest):
             "quality_score": round(quality_score, 3),
             "hallucination_risk": result.get("hallucination_risk", "low"),
             "evaluation_notes": result.get("evaluation_notes", ""),
-            "agent_trace": result.get("agent_trace", []) + [f"Routed as: {route_info['type']}"] + ([f"Multi-step reasoning applied ({len(reasoning_steps)} steps)"] if reasoning_steps else []),
+            "agent_trace": result.get("agent_trace", []) + [f"Routed as: {route_info['type']}"] + ([f"Multi-step reasoning applied ({len(reasoning_steps)} steps)"] if reasoning_steps else []) + ([f"{len(clinical_alerts)} clinical alert(s) detected"] if clinical_alerts else []),
             "sources": formatted_citations,
             "latency_ms": round(latency_ms, 2),
             "query_type": route_info["type"],
             "routing_confidence": route_info["confidence"],
             "citation_summary": citation_summary,
-            "reasoning_steps": reasoning_steps if reasoning_steps else None
+            "reasoning_steps": reasoning_steps if reasoning_steps else None,
+            "clinical_alerts": clinical_alerts if clinical_alerts else None
         }
 
         # 11. STORE IN MEMORY
