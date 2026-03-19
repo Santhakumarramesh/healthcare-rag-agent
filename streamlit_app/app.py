@@ -1,6 +1,6 @@
 """
-AI Healthcare Copilot - Professional Clinical Dashboard
-Production-grade medical Q&A, report analysis, and monitoring
+AI Healthcare Copilot - Professional Clinical SaaS Dashboard
+Evidence-backed medical Q&A, report analysis, and clinical workflow support
 """
 
 import streamlit as st
@@ -22,304 +22,453 @@ API_BASE = os.getenv("API_BASE_URL", "http://localhost:8000")
 
 st.set_page_config(
     page_title="AI Healthcare Copilot",
-    page_icon="🏥",
+    page_icon="⚕️",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# PROFESSIONAL CLINICAL CSS
+# PROFESSIONAL CLINICAL SAAS CSS
 # ═══════════════════════════════════════════════════════════════════════════════
 
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Manrope:wght@400;500;600;700&display=swap');
 
 /* Global */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
 html, body, [class*="css"] {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: #1a202c;
 }
 
 /* Hide Streamlit branding */
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
+header {visibility: hidden;}
+
+/* Clinical color palette */
+:root {
+    --primary: #0F4C81;
+    --accent: #2CB1BC;
+    --background: #F7FAFC;
+    --surface: #FFFFFF;
+    --border: #D9E6F2;
+    --success: #2F855A;
+    --warning: #DD6B20;
+    --danger: #C53030;
+    --text-primary: #1a202c;
+    --text-secondary: #4a5568;
+    --text-muted: #718096;
+}
+
+/* Main container */
+.main .block-container {
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+    max-width: 1400px;
+}
 
 /* Sidebar styling */
 [data-testid="stSidebar"] {
-    background-color: #f8f9fa;
-    border-right: 1px solid #e0e0e0;
+    background-color: var(--surface);
+    border-right: 1px solid var(--border);
+    padding-top: 1rem;
+}
+
+[data-testid="stSidebar"] .block-container {
+    padding-top: 1rem;
+}
+
+/* Professional header */
+.app-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 1.25rem 2rem;
+    margin: -2rem -2rem 2rem -2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.app-logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.app-logo-icon {
+    width: 36px;
+    height: 36px;
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 700;
+    font-size: 1.2rem;
+}
+
+.app-logo-text {
+    font-family: 'Manrope', sans-serif;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-primary);
 }
 
 /* Status cards in sidebar */
 .status-card {
-    background: white;
-    border: 1px solid #e0e0e0;
-    border-radius: 8px;
-    padding: 12px;
-    margin: 8px 0;
+    background: var(--background);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin: 10px 0;
 }
 
 .status-card-title {
     font-size: 0.75rem;
     font-weight: 600;
-    color: #666;
+    color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
 }
 
 .status-card-value {
-    font-size: 0.9rem;
+    font-size: 0.95rem;
     font-weight: 500;
-    color: #333;
-}
-
-.status-indicator {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    margin-right: 6px;
-}
-
-.status-healthy { background-color: #27ae60; }
-.status-warning { background-color: #f39c12; }
-.status-error { background-color: #e74c3c; }
-
-/* Hero section */
-.hero-section {
-    background: linear-gradient(135deg, #0f4c75 0%, #1b6ca8 50%, #3282b8 100%);
-    color: white;
-    padding: 3rem 2rem;
-    border-radius: 16px;
-    text-align: center;
-    margin-bottom: 2rem;
-}
-
-.hero-title {
-    font-size: 2.5rem;
-    font-weight: 700;
-    margin: 0 0 0.5rem 0;
-    letter-spacing: -0.02em;
-}
-
-.hero-subtitle {
-    font-size: 1.1rem;
-    opacity: 0.9;
-    font-weight: 400;
-    margin: 0;
-    line-height: 1.6;
-}
-
-/* Quick action cards */
-.quick-actions {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 16px;
-    margin: 2rem 0;
-}
-
-.action-card {
-    background: white;
-    border: 2px solid #e0e0e0;
-    border-radius: 12px;
-    padding: 24px;
-    text-align: center;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.action-card:hover {
-    border-color: #1b6ca8;
-    box-shadow: 0 4px 12px rgba(27, 108, 168, 0.15);
-    transform: translateY(-2px);
-}
-
-.action-icon {
-    font-size: 2.5rem;
-    margin-bottom: 12px;
-}
-
-.action-title {
-    font-size: 1rem;
-    font-weight: 600;
-    color: #333;
-    margin: 0;
-}
-
-/* Clinical answer card */
-.answer-card {
-    background: white;
-    border: 1px solid #e0e0e0;
-    border-radius: 12px;
-    padding: 24px;
-    margin: 16px 0;
-}
-
-.answer-section {
-    margin-bottom: 20px;
-}
-
-.answer-section:last-child {
-    margin-bottom: 0;
-}
-
-.section-title {
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: #666;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin-bottom: 12px;
+    color: var(--text-primary);
     display: flex;
     align-items: center;
     gap: 8px;
 }
 
-.answer-text {
-    font-size: 1rem;
+.status-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.status-healthy { background-color: var(--success); }
+.status-warning { background-color: var(--warning); }
+.status-error { background-color: var(--danger); }
+
+/* Hero section */
+.hero-section {
+    background: linear-gradient(135deg, #0F4C81 0%, #1a6ba8 50%, #2CB1BC 100%);
+    color: white;
+    padding: 3.5rem 2.5rem;
+    border-radius: 16px;
+    margin-bottom: 2.5rem;
+    box-shadow: 0 4px 6px rgba(15, 76, 129, 0.1);
+}
+
+.hero-title {
+    font-family: 'Manrope', sans-serif;
+    font-size: 2.75rem;
+    font-weight: 700;
+    margin: 0 0 0.75rem 0;
+    letter-spacing: -0.02em;
+}
+
+.hero-subtitle {
+    font-size: 1.15rem;
+    opacity: 0.95;
+    font-weight: 400;
+    margin: 0;
     line-height: 1.7;
-    color: #333;
+    max-width: 800px;
+}
+
+/* Quick action cards */
+.action-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 20px;
+    margin: 2rem 0;
+}
+
+.action-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px 24px;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.action-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--primary), var(--accent));
+    transform: scaleX(0);
+    transition: transform 0.25s ease;
+}
+
+.action-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 8px 16px rgba(44, 177, 188, 0.12);
+    transform: translateY(-2px);
+}
+
+.action-card:hover::before {
+    transform: scaleX(1);
+}
+
+.action-icon {
+    width: 48px;
+    height: 48px;
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+    color: white;
+    font-size: 1.5rem;
+}
+
+.action-title {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 6px 0;
+}
+
+.action-desc {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin: 0;
+}
+
+/* Clinical answer card */
+.answer-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 28px;
+    margin: 20px 0;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+}
+
+.answer-section {
+    margin-bottom: 24px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+}
+
+.answer-section:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.section-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.section-icon {
+    width: 24px;
+    height: 24px;
+    background: var(--background);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--primary);
+    font-size: 0.9rem;
+}
+
+.section-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 0;
+}
+
+.answer-text {
+    font-size: 1.05rem;
+    line-height: 1.75;
+    color: var(--text-primary);
 }
 
 /* Confidence badge */
 .confidence-badge {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 16px;
-    border-radius: 20px;
+    gap: 10px;
+    padding: 10px 18px;
+    border-radius: 24px;
     font-weight: 600;
-    font-size: 0.95rem;
+    font-size: 1rem;
 }
 
-.confidence-high { background-color: #d4edda; color: #155724; }
-.confidence-medium { background-color: #fff3cd; color: #856404; }
-.confidence-low { background-color: #f8d7da; color: #721c24; }
+.confidence-high {
+    background-color: #E6F4EA;
+    color: var(--success);
+    border: 1px solid #A8DAB5;
+}
+
+.confidence-medium {
+    background-color: #FFF4E5;
+    color: var(--warning);
+    border: 1px solid #FFD8A8;
+}
+
+.confidence-low {
+    background-color: #FEE;
+    color: var(--danger);
+    border: 1px solid #FCA5A5;
+}
 
 /* Source cards */
 .source-card {
-    background: #f8f9fa;
-    border-left: 3px solid #1b6ca8;
-    border-radius: 6px;
-    padding: 12px 16px;
-    margin: 8px 0;
+    background: var(--background);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin: 10px 0;
+}
+
+.source-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
 }
 
 .source-name {
     font-weight: 600;
-    color: #333;
-    font-size: 0.9rem;
+    color: var(--text-primary);
+    font-size: 0.95rem;
 }
 
 .source-score {
-    color: #666;
+    color: var(--text-muted);
     font-size: 0.85rem;
+    font-weight: 500;
 }
 
 .source-preview {
-    color: #555;
-    font-size: 0.85rem;
-    margin-top: 6px;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    line-height: 1.6;
     font-style: italic;
 }
 
 /* Safety alert */
 .safety-alert {
-    background: #fff3cd;
-    border: 1px solid #ffc107;
-    border-radius: 8px;
-    padding: 12px 16px;
-    margin: 16px 0;
+    background: #FFF4E5;
+    border: 1px solid #FFD8A8;
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin: 20px 0;
     display: flex;
     align-items: flex-start;
-    gap: 12px;
+    gap: 14px;
 }
 
 .safety-icon {
-    font-size: 1.5rem;
+    width: 24px;
+    height: 24px;
+    background: var(--warning);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1rem;
     flex-shrink: 0;
 }
 
 .safety-text {
-    font-size: 0.9rem;
-    color: #856404;
-    line-height: 1.5;
+    font-size: 0.925rem;
+    color: #744210;
+    line-height: 1.6;
 }
 
 /* Metric cards */
+.metric-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin: 2rem 0;
+}
+
 .metric-card {
-    background: white;
-    border: 1px solid #e0e0e0;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 12px;
-    padding: 20px;
-    text-align: center;
+    padding: 24px;
 }
 
 .metric-value {
-    font-size: 2.5rem;
+    font-size: 2.75rem;
     font-weight: 700;
-    color: #1b6ca8;
-    margin: 0;
+    color: var(--primary);
+    margin: 0 0 8px 0;
+    font-family: 'Manrope', sans-serif;
 }
 
 .metric-label {
-    font-size: 0.85rem;
-    color: #666;
+    font-size: 0.875rem;
+    color: var(--text-muted);
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    margin-top: 8px;
-}
-
-/* Mode toggle */
-.mode-toggle {
-    background: white;
-    border: 2px solid #e0e0e0;
-    border-radius: 24px;
-    padding: 4px;
-    display: inline-flex;
-    gap: 4px;
-}
-
-.mode-button {
-    padding: 8px 20px;
-    border-radius: 20px;
-    font-size: 0.9rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.mode-button-active {
-    background: #1b6ca8;
-    color: white;
-}
-
-.mode-button-inactive {
-    background: transparent;
-    color: #666;
 }
 
 /* Report upload box */
 .upload-box {
-    border: 2px dashed #1b6ca8;
+    border: 2px dashed var(--border);
     border-radius: 12px;
-    padding: 40px;
+    padding: 48px;
     text-align: center;
-    background: #f8f9fa;
-    margin: 20px 0;
+    background: var(--background);
+    margin: 24px 0;
+    transition: all 0.2s ease;
+}
+
+.upload-box:hover {
+    border-color: var(--accent);
+    background: #F0FAFB;
 }
 
 .upload-icon {
-    font-size: 3rem;
-    color: #1b6ca8;
-    margin-bottom: 16px;
+    width: 64px;
+    height: 64px;
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 2rem;
+    margin: 0 auto 20px;
 }
 
 .upload-text {
-    font-size: 1rem;
-    color: #666;
+    font-size: 1.05rem;
+    color: var(--text-secondary);
     margin: 0;
 }
 
@@ -331,11 +480,11 @@ footer {visibility: hidden;}
 }
 
 .insight-item {
-    padding: 10px 0;
-    border-bottom: 1px solid #e0e0e0;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
     display: flex;
     align-items: flex-start;
-    gap: 12px;
+    gap: 14px;
 }
 
 .insight-item:last-child {
@@ -343,15 +492,70 @@ footer {visibility: hidden;}
 }
 
 .insight-bullet {
-    color: #1b6ca8;
-    font-size: 1.2rem;
+    width: 24px;
+    height: 24px;
+    background: var(--background);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent);
+    font-size: 0.875rem;
     flex-shrink: 0;
+    font-weight: 600;
 }
 
 .insight-text {
-    font-size: 0.95rem;
-    line-height: 1.6;
-    color: #333;
+    font-size: 0.975rem;
+    line-height: 1.7;
+    color: var(--text-primary);
+    flex: 1;
+}
+
+/* Section headers */
+.section-header-main {
+    font-family: 'Manrope', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 1.5rem 0;
+}
+
+/* Buttons */
+.stButton > button {
+    border-radius: 8px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.stButton > button[kind="primary"] {
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    border: none;
+}
+
+.stButton > button[kind="primary"]:hover {
+    box-shadow: 0 4px 12px rgba(44, 177, 188, 0.3);
+    transform: translateY(-1px);
+}
+
+/* Input fields */
+.stTextInput > div > div > input {
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    padding: 12px 16px;
+    font-size: 1rem;
+}
+
+.stTextInput > div > div > input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(44, 177, 188, 0.1);
+}
+
+/* Expander */
+.streamlit-expanderHeader {
+    background: var(--background);
+    border-radius: 8px;
+    font-weight: 500;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -365,7 +569,7 @@ if "session_id" not in st.session_state:
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "mode" not in st.session_state:
-    st.session_state.mode = "patient"  # patient or clinician
+    st.session_state.mode = "patient"
 if "current_page" not in st.session_state:
     st.session_state.current_page = "home"
 
@@ -374,36 +578,49 @@ if "current_page" not in st.session_state:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 with st.sidebar:
-    st.markdown("### 🏥 AI Healthcare Copilot")
-    st.markdown("---")
+    # Logo
+    st.markdown("""
+    <div style="padding: 0 0 1.5rem 0; border-bottom: 1px solid var(--border);">
+        <div class="app-logo">
+            <div class="app-logo-icon">HC</div>
+            <div class="app-logo-text">Healthcare Copilot</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("<br>", unsafe_allow_html=True)
     
     # Navigation
-    st.markdown("#### Navigation")
-    
-    if st.button("🏠 Home & Chat", use_container_width=True, 
+    if st.button("Dashboard", use_container_width=True, 
                  type="primary" if st.session_state.current_page == "home" else "secondary"):
         st.session_state.current_page = "home"
         st.rerun()
     
-    if st.button("📋 Report Analyzer", use_container_width=True,
+    if st.button("Ask AI", use_container_width=True,
+                 type="primary" if st.session_state.current_page == "chat" else "secondary"):
+        st.session_state.current_page = "chat"
+        st.rerun()
+    
+    if st.button("Report Analyzer", use_container_width=True,
                  type="primary" if st.session_state.current_page == "reports" else "secondary"):
         st.session_state.current_page = "reports"
         st.rerun()
     
-    if st.button("📊 Monitoring Dashboard", use_container_width=True,
-                 type="primary" if st.session_state.current_page == "dashboard" else "secondary"):
-        st.session_state.current_page = "dashboard"
-        st.rerun()
-    
-    if st.button("🕐 Patient History", use_container_width=True,
+    if st.button("Patient History", use_container_width=True,
                  type="primary" if st.session_state.current_page == "history" else "secondary"):
         st.session_state.current_page = "history"
         st.rerun()
     
+    if st.button("Monitoring", use_container_width=True,
+                 type="primary" if st.session_state.current_page == "dashboard" else "secondary"):
+        st.session_state.current_page = "dashboard"
+        st.rerun()
+    
+    st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("---")
     
     # System status cards
-    st.markdown("#### System Status")
+    st.markdown("**System Status**")
     
     try:
         health = requests.get(f"{API_BASE}/health", timeout=3).json()
@@ -419,7 +636,7 @@ with st.sidebar:
     status_class = "status-healthy" if api_status == "healthy" else "status-error"
     st.markdown(f"""
     <div class="status-card">
-        <div class="status-card-title">API Status</div>
+        <div class="status-card-title">API Service</div>
         <div class="status-card-value">
             <span class="status-indicator {status_class}"></span>
             {api_status.title()}
@@ -449,16 +666,16 @@ with st.sidebar:
     """, unsafe_allow_html=True)
     
     st.markdown("---")
-    st.markdown("**Mode:**")
+    st.markdown("**User Mode**")
     
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("👤 Patient", use_container_width=True, 
+        if st.button("Patient", use_container_width=True, 
                      type="primary" if st.session_state.mode == "patient" else "secondary"):
             st.session_state.mode = "patient"
             st.rerun()
     with col2:
-        if st.button("⚕️ Clinician", use_container_width=True,
+        if st.button("Clinician", use_container_width=True,
                      type="primary" if st.session_state.mode == "clinician" else "secondary"):
             st.session_state.mode = "clinician"
             st.rerun()
@@ -486,9 +703,8 @@ def render_clinical_answer_card(response_data):
     answer = response_data.get("response", "")
     quality_score = response_data.get("quality_score", 0)
     sources = response_data.get("sources", [])
-    intent = response_data.get("intent", "")
     
-    # Extract key insights (simple heuristic: split by periods, take first 3-4 sentences)
+    # Extract key insights
     sentences = [s.strip() + "." for s in answer.split(".") if s.strip()]
     key_insights = sentences[:min(3, len(sentences))]
     
@@ -496,21 +712,30 @@ def render_clinical_answer_card(response_data):
     <div class="answer-card">
         <!-- Answer Section -->
         <div class="answer-section">
-            <div class="section-title">💬 Answer</div>
+            <div class="section-header">
+                <div class="section-icon">A</div>
+                <div class="section-title">Answer</div>
+            </div>
             <div class="answer-text">{answer}</div>
         </div>
         
         <!-- Key Insights Section -->
         <div class="answer-section">
-            <div class="section-title">💡 Key Clinical Insights</div>
+            <div class="section-header">
+                <div class="section-icon">✓</div>
+                <div class="section-title">Key Clinical Insights</div>
+            </div>
             <ul class="insights-list">
-                {"".join([f'<li class="insight-item"><span class="insight-bullet">•</span><span class="insight-text">{insight}</span></li>' for insight in key_insights])}
+                {"".join([f'<li class="insight-item"><div class="insight-bullet">{idx}</div><div class="insight-text">{insight}</div></li>' for idx, insight in enumerate(key_insights, 1)])}
             </ul>
         </div>
         
         <!-- Confidence Section -->
         <div class="answer-section">
-            <div class="section-title">📊 Confidence Assessment</div>
+            <div class="section-header">
+                <div class="section-icon">%</div>
+                <div class="section-title">Confidence Assessment</div>
+            </div>
             {render_confidence_badge(quality_score)}
         </div>
     </div>
@@ -518,7 +743,7 @@ def render_clinical_answer_card(response_data):
     
     # Sources (expandable)
     if sources:
-        with st.expander(f"📚 View {len(sources)} Source Citations"):
+        with st.expander(f"View {len(sources)} Source Citations"):
             for idx, source in enumerate(sources[:5], 1):
                 if isinstance(source, dict):
                     source_name = source.get("source", "Document")
@@ -527,8 +752,10 @@ def render_clinical_answer_card(response_data):
                     
                     st.markdown(f"""
                     <div class="source-card">
-                        <div class="source-name">Source {idx}: {source_name}</div>
-                        <div class="source-score">Relevance: {score:.3f}</div>
+                        <div class="source-header">
+                            <div class="source-name">Source {idx}: {source_name}</div>
+                            <div class="source-score">Relevance: {score:.3f}</div>
+                        </div>
                         <div class="source-preview">{text_preview}...</div>
                     </div>
                     """, unsafe_allow_html=True)
@@ -536,7 +763,7 @@ def render_clinical_answer_card(response_data):
     # Safety note
     st.markdown("""
     <div class="safety-alert">
-        <div class="safety-icon">⚠️</div>
+        <div class="safety-icon">!</div>
         <div class="safety-text">
             <strong>Important:</strong> This AI assistant provides general health information only. 
             It does not replace professional medical advice, diagnosis, or treatment. 
@@ -546,7 +773,7 @@ def render_clinical_answer_card(response_data):
     """, unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# PAGE 1: HOME & CHAT
+# PAGE 1: HOME / DASHBOARD
 # ═══════════════════════════════════════════════════════════════════════════════
 
 if st.session_state.current_page == "home":
@@ -555,57 +782,76 @@ if st.session_state.current_page == "home":
     <div class="hero-section">
         <h1 class="hero-title">AI Healthcare Copilot</h1>
         <p class="hero-subtitle">
-            Grounded medical Q&A, report analysis, and evidence-backed answers with confidence scoring.<br>
+            Evidence-backed medical Q&A, report analysis, and clinical workflow support.<br>
             Powered by a 5-stage AI pipeline with hybrid retrieval and self-correction.
         </p>
     </div>
     """, unsafe_allow_html=True)
     
     # Quick action cards
-    st.markdown("### Quick Actions")
+    st.markdown('<h2 class="section-header-main">Quick Actions</h2>', unsafe_allow_html=True)
     
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        if st.button("💊\n\n**Drug Information**", use_container_width=True, key="qa_drug"):
+        if st.button("Drug Information\n\nMedication usage, interactions, contraindications", use_container_width=True, key="qa_drug"):
             st.session_state.prefill_query = "Tell me about metformin - uses, side effects, and contraindications"
+            st.session_state.current_page = "chat"
             st.rerun()
     
     with col2:
-        if st.button("🩺\n\n**Symptom Guidance**", use_container_width=True, key="qa_symptoms"):
+        if st.button("Symptom Guidance\n\nStructured reasoning from symptoms and history", use_container_width=True, key="qa_symptoms"):
             st.session_state.prefill_query = "What could cause persistent fatigue, increased thirst, and frequent urination?"
+            st.session_state.current_page = "chat"
             st.rerun()
     
     with col3:
-        if st.button("📋\n\n**Lab Report Analysis**", use_container_width=True, key="qa_labs"):
+        if st.button("Lab Report Analysis\n\nUpload and interpret reports with evidence", use_container_width=True, key="qa_labs"):
             st.session_state.prefill_query = "What does an HbA1c of 8.2% indicate and what should I do?"
+            st.session_state.current_page = "chat"
             st.rerun()
     
     with col4:
-        if st.button("🔬\n\n**Research Summary**", use_container_width=True, key="qa_research"):
+        if st.button("Research Summary\n\nRetrieve and summarize clinical knowledge", use_container_width=True, key="qa_research"):
             st.session_state.prefill_query = "What are the latest treatment guidelines for Type 2 diabetes?"
+            st.session_state.current_page = "chat"
             st.rerun()
     
     st.markdown("---")
     
-    # Chat interface
-    st.markdown("### Ask a Question")
+    # Recent activity
+    st.markdown('<h2 class="section-header-main">Recent Activity</h2>', unsafe_allow_html=True)
+    
+    if st.session_state.messages:
+        st.info(f"Total conversations: {len([m for m in st.session_state.messages if m['role'] == 'user'])}")
+    else:
+        st.info("No recent activity. Start a conversation to see your history here.")
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PAGE 2: ASK AI (CHAT)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+elif st.session_state.current_page == "chat":
+    st.markdown('<h1 class="section-header-main">Ask AI</h1>', unsafe_allow_html=True)
     
     # Get prefilled query if exists
     prefill = st.session_state.pop("prefill_query", "")
     
-    user_query = st.text_input(
-        "Type your healthcare question...",
-        value=prefill,
-        placeholder="e.g., What are the symptoms of Type 2 diabetes?",
-        label_visibility="collapsed"
-    )
+    col_input, col_send, col_clear = st.columns([8, 1, 1])
     
-    col_send, col_clear = st.columns([6, 1])
+    with col_input:
+        user_query = st.text_input(
+            "Type your healthcare question...",
+            value=prefill,
+            placeholder="e.g., What are the symptoms of Type 2 diabetes?",
+            label_visibility="collapsed"
+        )
+    
     with col_send:
-        send_button = st.button("🔍 Ask", use_container_width=True, type="primary")
+        send_button = st.button("Ask", use_container_width=True, type="primary")
+    
     with col_clear:
-        if st.button("🗑️", use_container_width=True):
+        if st.button("Clear", use_container_width=True):
             st.session_state.messages = []
             st.rerun()
     
@@ -614,7 +860,7 @@ if st.session_state.current_page == "home":
         st.session_state.messages.append({"role": "user", "content": user_query})
         
         # Call API
-        with st.spinner("AI is thinking..."):
+        with st.spinner("AI is analyzing..."):
             try:
                 response = requests.post(
                     f"{API_BASE}/chat",
@@ -631,21 +877,26 @@ if st.session_state.current_page == "home":
         
         st.rerun()
     
+    st.markdown("---")
+    
     # Display conversation
     for msg in st.session_state.messages:
         if msg["role"] == "user":
             st.markdown(f"**You:** {msg['content']}")
+            st.markdown("")
         else:
-            st.markdown("**AI Healthcare Copilot:**")
+            st.markdown("**AI Healthcare Copilot**")
             render_clinical_answer_card(msg["content"])
+            st.markdown("")
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# PAGE 2: REPORT ANALYZER
+# PAGE 3: REPORT ANALYZER
 # ═══════════════════════════════════════════════════════════════════════════════
 
 elif st.session_state.current_page == "reports":
-    st.markdown("# 📋 Medical Report Analyzer")
+    st.markdown('<h1 class="section-header-main">Medical Report Analyzer</h1>', unsafe_allow_html=True)
     st.markdown("Upload lab results, discharge summaries, or medical reports for AI-powered analysis.")
+    st.markdown("<br>", unsafe_allow_html=True)
     
     col_left, col_right = st.columns([1, 1])
     
@@ -659,15 +910,14 @@ elif st.session_state.current_page == "reports":
         )
         
         if uploaded_file:
-            st.success(f"✅ Uploaded: {uploaded_file.name}")
+            st.success(f"Uploaded: {uploaded_file.name}")
             
-            if st.button("🔍 Analyze Report", use_container_width=True, type="primary"):
+            if st.button("Analyze Report", use_container_width=True, type="primary"):
                 with st.spinner("Analyzing report..."):
                     try:
                         files = {"file": uploaded_file}
                         data = {"session_id": st.session_state.session_id}
                         
-                        # Upload
                         upload_resp = requests.post(
                             f"{API_BASE}/records/upload",
                             files=files,
@@ -676,7 +926,6 @@ elif st.session_state.current_page == "reports":
                         )
                         
                         if upload_resp.status_code == 200:
-                            # Analyze
                             analyze_resp = requests.post(
                                 f"{API_BASE}/records/analyze",
                                 json={"session_id": st.session_state.session_id},
@@ -685,7 +934,7 @@ elif st.session_state.current_page == "reports":
                             
                             if analyze_resp.status_code == 200:
                                 st.session_state.analysis_result = analyze_resp.json()
-                                st.success("✅ Analysis complete!")
+                                st.success("Analysis complete!")
                                 st.rerun()
                         else:
                             st.error(f"Upload failed: {upload_resp.status_code}")
@@ -698,44 +947,40 @@ elif st.session_state.current_page == "reports":
         if "analysis_result" in st.session_state:
             result = st.session_state.analysis_result
             
-            # Detected report type
-            st.markdown("#### 📄 Detected Report Type")
+            st.markdown("#### Detected Report Type")
             st.info(result.get("report_type", "Medical Document"))
             
-            # Important values
-            st.markdown("#### 🔬 Important Values")
+            st.markdown("#### Important Values")
             labs = result.get("lab_values", [])
             if labs:
                 for lab in labs[:5]:
-                    status = "🔴" if lab.get("abnormal") else "🟢"
-                    st.markdown(f"{status} **{lab.get('name')}**: {lab.get('value')} {lab.get('unit', '')}")
+                    status = "Abnormal" if lab.get("abnormal") else "Normal"
+                    st.markdown(f"**{lab.get('name')}**: {lab.get('value')} {lab.get('unit', '')} ({status})")
             else:
                 st.info("No lab values detected")
             
-            # Diagnoses
             diagnoses = result.get("diagnoses", [])
             if diagnoses:
-                st.markdown("#### 🩺 Diagnoses")
+                st.markdown("#### Diagnoses")
                 for dx in diagnoses:
                     st.markdown(f"- {dx}")
             
-            # Simple explanation
-            st.markdown("#### 💡 Simple Explanation")
+            st.markdown("#### Simple Explanation")
             explanation = result.get("explanation", "Analysis complete. Review the extracted values above.")
             st.markdown(explanation)
             
-            # Safety note
-            st.warning("⚠️ **When to Seek Medical Attention:** If you notice any abnormal values or have concerns, consult your healthcare provider immediately.")
+            st.warning("**When to Seek Medical Attention:** If you notice any abnormal values or have concerns, consult your healthcare provider immediately.")
         else:
             st.info("Upload a report to see analysis results here.")
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# PAGE 3: MONITORING DASHBOARD
+# PAGE 4: MONITORING DASHBOARD
 # ═══════════════════════════════════════════════════════════════════════════════
 
 elif st.session_state.current_page == "dashboard":
-    st.markdown("# 📊 Monitoring Dashboard")
+    st.markdown('<h1 class="section-header-main">Monitoring Dashboard</h1>', unsafe_allow_html=True)
     st.markdown("Real-time system metrics and performance analytics")
+    st.markdown("<br>", unsafe_allow_html=True)
     
     try:
         stats = requests.get(f"{API_BASE}/stats", timeout=3).json()
@@ -778,7 +1023,6 @@ elif st.session_state.current_page == "dashboard":
         
         st.markdown("---")
         
-        # Detailed stats
         col_left, col_right = st.columns(2)
         
         with col_left:
@@ -795,21 +1039,22 @@ elif st.session_state.current_page == "dashboard":
         st.error(f"Unable to fetch stats: {str(e)}")
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# PAGE 4: PATIENT HISTORY
+# PAGE 5: PATIENT HISTORY
 # ═══════════════════════════════════════════════════════════════════════════════
 
 elif st.session_state.current_page == "history":
-    st.markdown("# 🕐 Patient History")
+    st.markdown('<h1 class="section-header-main">Patient History</h1>', unsafe_allow_html=True)
     st.markdown("View previous sessions and uploaded reports")
+    st.markdown("<br>", unsafe_allow_html=True)
     
     if st.session_state.messages:
         st.markdown("### Recent Conversations")
         
         for idx, msg in enumerate(reversed(st.session_state.messages[-10:])):
             if msg["role"] == "user":
-                with st.expander(f"💬 {msg['content'][:60]}..."):
+                with st.expander(f"{msg['content'][:60]}..."):
                     st.markdown(f"**Query:** {msg['content']}")
-                    if idx > 0 and st.session_state.messages[-(idx)][ "role"] == "assistant":
+                    if idx > 0 and st.session_state.messages[-(idx)]["role"] == "assistant":
                         response = st.session_state.messages[-(idx)]["content"]
                         st.markdown(f"**Confidence:** {int(response.get('quality_score', 0)*100)}%")
                         st.markdown(f"**Intent:** {response.get('intent', 'N/A')}")
