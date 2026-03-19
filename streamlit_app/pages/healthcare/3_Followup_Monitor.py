@@ -50,6 +50,49 @@ if "followup_profile" not in st.session_state:
 if "daily_updates" not in st.session_state:
     st.session_state.daily_updates = []
 
+def compute_delta(today: dict, yesterday: dict) -> dict:
+    """Compare two check-ins and return what changed."""
+    changes = []
+    pain_today = int(today.get("pain_level", 0))
+    pain_yesterday = int(yesterday.get("pain_level", 0))
+    pain_delta = pain_today - pain_yesterday
+
+    if pain_delta > 0:
+        changes.append(f"Pain level increased by {pain_delta} points ({pain_yesterday} → {pain_today})")
+    elif pain_delta < 0:
+        changes.append(f"Pain level decreased by {abs(pain_delta)} points ({pain_yesterday} → {pain_today})")
+
+    trend_today = today.get("condition_trend", "")
+    trend_yesterday = yesterday.get("condition_trend", "")
+    if trend_today != trend_yesterday:
+        changes.append(f"Condition trend changed: {trend_yesterday} → {trend_today}")
+
+    if today.get("medications_taken") != yesterday.get("medications_taken"):
+        today_med = "taken" if today.get("medications_taken") else "missed"
+        yesterday_med = "taken" if yesterday.get("medications_taken") else "missed"
+        changes.append(f"Medication adherence: {yesterday_med} → {today_med}")
+
+    for field, label in [("sleep_quality", "Sleep"), ("appetite", "Appetite"), ("hydration", "Hydration")]:
+        if today.get(field) != yesterday.get(field):
+            changes.append(f"{label}: {yesterday.get(field, '?')} → {today.get(field, '?')}")
+
+    emergency_fields = ["fever", "breathing_difficulty", "chest_pain", "confusion"]
+    new_emergency = [f.replace("_", " ") for f in emergency_fields
+                     if today.get(f) and not yesterday.get(f)]
+    if new_emergency:
+        changes.append(f"NEW emergency symptoms: {', '.join(new_emergency)}")
+
+    trend_score = {"Improved": 1, "Stable": 0, "Worse": -1}
+    direction = trend_score.get(trend_today, 0) - trend_score.get(trend_yesterday, 0)
+
+    return {
+        "changes": changes,
+        "direction": "improving" if direction > 0 else "worsening" if direction < 0 else "stable",
+        "pain_delta": pain_delta,
+        "has_changes": len(changes) > 0,
+    }
+
+
 def assess_risk(payload: dict) -> tuple[str, str]:
     """Assess risk level based on daily check-in data."""
     high_risk_triggers = [
@@ -297,6 +340,31 @@ with col_checkin_right:
         latest = st.session_state.daily_updates[-1]
         
         render_risk_alert_banner(latest['risk_level'], latest['risk_message'])
+
+        # "What Changed" engine — compare today vs yesterday
+        if len(st.session_state.daily_updates) >= 2:
+            delta = compute_delta(
+                st.session_state.daily_updates[-1],
+                st.session_state.daily_updates[-2],
+            )
+            direction_color = {"improving": "#27ae60", "worsening": "#e74c3c", "stable": "#2980b9"}
+            direction_label = {"improving": "Improving", "worsening": "Worsening", "stable": "Stable"}
+            color = direction_color.get(delta["direction"], "#666")
+            label = direction_label.get(delta["direction"], "Unknown")
+
+            changes_html = "".join(
+                f'<div style="padding: 4px 0; border-bottom: 1px solid #eee; font-size: 0.85rem; color: #555;">• {c}</div>'
+                for c in delta["changes"]
+            ) if delta["changes"] else '<div style="color: #888; font-size: 0.85rem;">No significant changes from yesterday.</div>'
+
+            st.markdown(f"""
+<div style="background: #f8f9fa; border-left: 4px solid {color}; border-radius: 8px;
+     padding: 1rem; margin-bottom: 1rem;">
+  <div style="font-weight: 700; color: {color}; margin-bottom: 0.5rem;">
+    What Changed Since Yesterday — {label}
+  </div>
+  {changes_html}
+</div>""", unsafe_allow_html=True)
         
         st.markdown(f"""
         <div class="answer-card">
@@ -371,6 +439,53 @@ if st.session_state.daily_updates:
 
 # Footer actions
 st.markdown("<br><br>", unsafe_allow_html=True)
+
+# Visit Prep — shows after 3+ check-ins
+if len(st.session_state.daily_updates) >= 3:
+    st.markdown("---")
+    st.markdown("""
+<div style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.5rem;">
+    Visit Preparation
+</div>
+<div style="color: #666; margin-bottom: 1rem;">
+    Generate a pre-visit summary and questions to bring to your next appointment.
+</div>""", unsafe_allow_html=True)
+
+    if st.button("Generate Visit Summary", type="primary", use_container_width=False):
+        with st.spinner("Preparing your visit summary..."):
+            import requests, os
+            api_url = os.getenv("API_BASE_URL", "https://healthcare-rag-api.onrender.com")
+            try:
+                resp = requests.post(f"{api_url}/visit/prepare", json={
+                    "condition_name": st.session_state.followup_profile.get("condition_name", ""),
+                    "daily_updates": st.session_state.daily_updates,
+                    "current_medications": st.session_state.followup_profile.get("current_medications", ""),
+                    "doctor_notes": st.session_state.followup_profile.get("doctor_notes", ""),
+                }, timeout=30)
+                if resp.ok:
+                    vp = resp.json()
+                    st.markdown(f"""
+<div style="background: #f0f7ff; border-left: 4px solid #1b6ca8; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+  <div style="font-weight: 700; margin-bottom: 0.5rem;">Condition Summary</div>
+  <div style="color: #444;">{vp.get('condition_summary', '')}</div>
+</div>""", unsafe_allow_html=True)
+                    if vp.get("questions_for_doctor"):
+                        st.markdown("**Questions to ask your doctor:**")
+                        for q in vp["questions_for_doctor"]:
+                            st.markdown(f"- {q}")
+                    if vp.get("urgent_items"):
+                        st.markdown("**Mention first:**")
+                        for item in vp["urgent_items"]:
+                            st.markdown(f"- {item}")
+                    if vp.get("medication_issues"):
+                        st.markdown("**Medication notes:**")
+                        for issue in vp["medication_issues"]:
+                            st.markdown(f"- {issue}")
+                else:
+                    st.error("Could not generate visit summary. Check API connection.")
+            except Exception as e:
+                st.error(f"Error: {e}")
+
 st.markdown("---")
 
 col_f1, col_f2, col_f3 = st.columns(3)

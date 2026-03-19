@@ -168,6 +168,7 @@ with col_right:
         
         render_clinical_summary_card(summary, confidence, report_type)
         
+        
         # Section 5: Simple Explanation
         if analysis.get("simple_explanation"):
             st.markdown("<br>", unsafe_allow_html=True)
@@ -196,8 +197,9 @@ with col_right:
             
             render_important_values_table(analysis["extracted_values"])
         
-        # Section 7: Possible Concerns
-        if analysis.get("concerns"):
+        # Section 7: Possible Concerns (API returns 'potential_concerns')
+        concerns = analysis.get("concerns") or analysis.get("potential_concerns", [])
+        if concerns:
             st.markdown("<br>", unsafe_allow_html=True)
             st.markdown("""
             <div style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin-bottom: 1rem;">
@@ -206,7 +208,7 @@ with col_right:
             """, unsafe_allow_html=True)
             
             st.markdown('<div class="findings-grid">', unsafe_allow_html=True)
-            for concern in analysis["concerns"]:
+            for concern in concerns:
                 st.markdown(f"""
                 <div class="finding-card">
                     <div class="finding-value">{concern}</div>

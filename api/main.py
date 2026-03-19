@@ -560,6 +560,84 @@ async def get_risk_factors():
     return {"factors": RISK_FACTORS}
 
 
+# ── Visit Preparation Engine ──────────────────────────────────────────────────
+
+class VisitPrepRequest(BaseModel):
+    condition_name: str = ""
+    daily_updates: list = []
+    recent_reports: list = []
+    current_medications: str = ""
+    doctor_notes: str = ""
+
+
+@app.post("/visit/prepare", tags=["Visit Preparation"])
+async def prepare_visit(req: VisitPrepRequest):
+    """
+    Visit Preparation Engine.
+    Summarizes changes since last check, generates questions for the doctor,
+    highlights abnormal values, and surfaces medication adherence issues.
+    """
+    from langchain_openai import ChatOpenAI
+    from langchain_core.messages import SystemMessage, HumanMessage
+    import json
+
+    updates = req.daily_updates[-7:] if req.daily_updates else []
+
+    worsening = [u for u in updates if u.get("condition_trend") == "Worse"]
+    missed_meds = [u for u in updates if not u.get("medications_taken")]
+    high_pain = [u for u in updates if int(u.get("pain_level", 0)) >= 7]
+    emergency_days = [u for u in updates
+                      if any(u.get(f) for f in ["fever","breathing_difficulty","chest_pain"])]
+
+    context = f"""
+Condition: {req.condition_name or 'Not specified'}
+Medications: {req.current_medications or 'Not specified'}
+Doctor notes: {req.doctor_notes or 'None'}
+Days tracked: {len(updates)}
+Days worsening: {len(worsening)}
+Missed medication days: {len(missed_meds)}
+Days with pain >= 7: {len(high_pain)}
+Days with emergency symptoms: {len(emergency_days)}
+Most recent trend: {updates[-1].get('condition_trend', 'Unknown') if updates else 'No data'}
+Most recent pain: {updates[-1].get('pain_level', 'N/A') if updates else 'No data'}/10
+"""
+
+    llm = ChatOpenAI(api_key=config.OPENAI_API_KEY, model=config.OPENAI_MODEL, temperature=0.2)
+    system = """You are a visit preparation assistant. Generate a concise pre-visit summary.
+Return JSON only with this schema:
+{
+  "condition_summary": "2-3 sentence summary of the patient's current status",
+  "key_changes": ["change 1", "change 2"],
+  "questions_for_doctor": ["question 1", "question 2", "question 3", "question 4"],
+  "medication_issues": ["issue 1"],
+  "urgent_items": ["item to mention first"],
+  "stability": "improving|stable|worsening"
+}"""
+
+    try:
+        resp = await llm.ainvoke([
+            SystemMessage(content=system),
+            HumanMessage(content=f"Patient data summary:\n{context}")
+        ])
+        result = json.loads(resp.content)
+    except Exception as e:
+        logger.error(f"Visit prep failed: {e}")
+        result = {
+            "condition_summary": f"Tracking {req.condition_name or 'condition'} for {len(updates)} days.",
+            "key_changes": [f"{len(worsening)} worsening days" if worsening else "Condition generally stable"],
+            "questions_for_doctor": [
+                "Is my current treatment plan still appropriate?",
+                "Should I adjust any medications based on recent symptoms?",
+                "What warning signs should prompt me to seek urgent care?",
+            ],
+            "medication_issues": [f"Missed medications on {len(missed_meds)} days"] if missed_meds else [],
+            "urgent_items": ["Discuss recent worsening trend"] if worsening else [],
+            "stability": "worsening" if len(worsening) > len(updates)//2 else "stable",
+        }
+
+    return {**result, "days_tracked": len(updates), "condition": req.condition_name}
+
+
 # ── Knowledge Base Ingestion Endpoints ───────────────────────────────────────
 
 class IngestTextRequest(BaseModel):
