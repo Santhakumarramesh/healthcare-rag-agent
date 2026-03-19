@@ -52,16 +52,45 @@ async def lifespan(app: FastAPI):
     global pipeline, router_agent
     logger.info("Starting Healthcare RAG API...")
 
-    # NO blocking init - start immediately
+    # NO blocking init - start immediately so Render port binding succeeds
     pipeline = None
     router_agent = None
 
     # Load routers (required for /reports, /auth, etc.)
     _load_routers()
+
+    # Run ingest in background — builds FAISS index using OPENAI_API_KEY
+    # This runs AFTER the port is bound, so Render doesn't time out
+    asyncio.create_task(_background_ingest())
+
     logger.info("API startup complete - ready to serve")
     
     yield
     logger.info("Shutting down...")
+
+
+async def _background_ingest():
+    """Build FAISS index in background after startup. Safe to re-run."""
+    await asyncio.sleep(2)  # Let uvicorn fully start first
+    try:
+        from pathlib import Path
+        index_path = Path(config.FAISS_INDEX_PATH).resolve()
+        if (index_path / "index.faiss").exists():
+            logger.info("[Ingest] FAISS index already exists — skipping rebuild")
+            return
+        logger.info("[Ingest] Building FAISS index in background...")
+        import subprocess, sys
+        result = subprocess.run(
+            [sys.executable, "vectorstore/ingest.py"],
+            capture_output=True, text=True, timeout=120
+        )
+        if result.returncode == 0:
+            logger.success("[Ingest] FAISS index built successfully")
+            logger.info(result.stdout[-500:] if result.stdout else "")
+        else:
+            logger.error(f"[Ingest] Failed:\n{result.stderr[-500:]}")
+    except Exception as e:
+        logger.error(f"[Ingest] Background ingest error: {e}")
 
 
 app = FastAPI(

@@ -5,8 +5,10 @@ services:
     env: python
     region: oregon
     plan: free
-    buildCommand: "pip install -r requirements.txt && python vectorstore/ingest.py && echo 'BUILD_DONE' && ls -la vectorstore/faiss_index/"
-    startCommand: "uvicorn api.main:app --host 0.0.0.0 --port $PORT"
+    # NOTE: Build step has NO env vars on Render free tier.
+    # Ingest (which needs OPENAI_API_KEY) runs in start_api.sh instead.
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "bash start_api.sh"
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.10"
