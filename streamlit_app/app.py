@@ -1297,11 +1297,20 @@ elif st.session_state.current_page == "reports":
                         
                         if upload_resp.status_code == 200:
                             # Analyze endpoint expects Form data, not JSON
-                            analyze_resp = requests.post(
-                                f"{API_BASE}/records/analyze",
-                                data={"session_id": st.session_state.session_id},
-                                timeout=30
-                            )
+                            st.info("⏳ Analyzing report... This may take 30-60 seconds for complex reports with AI recommendations.")
+                            
+                            try:
+                                analyze_resp = requests.post(
+                                    f"{API_BASE}/records/analyze",
+                                    data={"session_id": st.session_state.session_id},
+                                    timeout=120  # 2 minutes for complex analysis with AI recommendations
+                                )
+                            except requests.exceptions.Timeout:
+                                st.error("⏱️ Analysis timed out. The report may be too complex. Please try a simpler report or contact support.")
+                                st.stop()
+                            except Exception as e:
+                                st.error(f"❌ Connection error: {str(e)}")
+                                st.stop()
                             
                             if analyze_resp.status_code == 200:
                                 st.session_state.analysis_result = analyze_resp.json()

@@ -70,8 +70,9 @@ class AuthService:
     
     def _create_demo_users(self):
         """Create demo users if they don't exist"""
-        db = get_db_session()
         try:
+            db = get_db_session()
+            
             demo_users = [
                 {
                     "user_id": "admin-001",
@@ -97,25 +98,39 @@ class AuthService:
             ]
             
             for user_data in demo_users:
-                # Check if user exists
-                existing = db.query(UserModel).filter(UserModel.email == user_data["email"]).first()
-                if not existing:
-                    user = UserModel(
-                        user_id=user_data["user_id"],
-                        email=user_data["email"],
-                        password_hash=self._hash_password(user_data["password"]),
-                        name=user_data["name"],
-                        role=user_data["role"],
-                        active=True
-                    )
-                    db.add(user)
+                try:
+                    # Check if user exists
+                    existing = db.query(UserModel).filter(UserModel.email == user_data["email"]).first()
+                    if not existing:
+                        user = UserModel(
+                            user_id=user_data["user_id"],
+                            email=user_data["email"],
+                            password_hash=self._hash_password(user_data["password"]),
+                            name=user_data["name"],
+                            role=user_data["role"],
+                            active=True
+                        )
+                        db.add(user)
+                        logger.info(f"[AuthService] Created demo user: {user_data['email']}")
+                except Exception as e:
+                    logger.warning(f"[AuthService] Could not create user {user_data['email']}: {e}")
+                    continue
             
             db.commit()
+            logger.success("[AuthService] Demo users initialized")
+            
         except Exception as e:
             logger.error(f"[AuthService] Error creating demo users: {e}")
-            db.rollback()
+            logger.warning("[AuthService] Continuing without demo users")
+            try:
+                db.rollback()
+            except:
+                pass
         finally:
-            db.close()
+            try:
+                db.close()
+            except:
+                pass
     
     def authenticate(self, email: str, password: str) -> Optional[Dict]:
         """

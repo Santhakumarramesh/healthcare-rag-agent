@@ -37,9 +37,28 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def init_db():
     """Initialize database - create all tables"""
-    logger.info("[Database] Initializing database...")
-    Base.metadata.create_all(bind=engine)
-    logger.success(f"[Database] Database initialized at {DATABASE_URL}")
+    try:
+        logger.info("[Database] Initializing database...")
+        
+        # Ensure data directory exists
+        DATABASE_DIR.mkdir(parents=True, exist_ok=True)
+        
+        # Create tables
+        Base.metadata.create_all(bind=engine)
+        
+        logger.success(f"[Database] Database initialized at {DATABASE_URL}")
+        
+        # Verify connection
+        db = SessionLocal()
+        try:
+            db.execute("SELECT 1")
+            logger.success("[Database] Connection verified")
+        finally:
+            db.close()
+            
+    except Exception as e:
+        logger.error(f"[Database] Initialization failed: {e}")
+        logger.warning("[Database] Continuing without database (will use in-memory fallback)")
 
 
 def get_db() -> Session:

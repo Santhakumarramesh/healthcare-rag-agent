@@ -426,11 +426,11 @@ elif page == "📄 Upload Report":
                     if upload_response.status_code == 200:
                         st.success("✅ File uploaded successfully!")
                         
-                        # Analyze
+                        # Analyze (increase timeout for complex reports)
                         analyze_response = requests.post(
                             f"{API_BASE}/records/analyze",
                             data={"session_id": st.session_state.session_id},
-                            timeout=60
+                            timeout=120  # 2 minutes for complex analysis
                         )
                         
                         if analyze_response.status_code == 200:
