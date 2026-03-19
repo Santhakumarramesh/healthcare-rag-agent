@@ -6,9 +6,12 @@ Features:
 - Password hashing with bcrypt
 - Role-based access control (RBAC)
 - Session management
+- Database-backed user storage
 """
 import os
+import sys
 import secrets
+from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Optional, Dict
 from enum import Enum
@@ -16,6 +19,10 @@ from enum import Enum
 import jwt
 import bcrypt
 from loguru import logger
+
+sys.path.append(str(Path(__file__).parent.parent))
+from database.database import get_db_session
+from database.models import User as UserModel
 
 
 class UserRole(str, Enum):
@@ -47,36 +54,10 @@ class AuthService:
         self.algorithm = "HS256"
         self.token_expiry_hours = 24
         
-        # In-memory user store (would be database in production)
-        self.users: Dict[str, Dict] = {
-            # Demo users
-            "admin@healthcare.ai": {
-                "user_id": "admin-001",
-                "email": "admin@healthcare.ai",
-                "password_hash": self._hash_password("admin123"),
-                "role": UserRole.ADMIN,
-                "name": "System Admin",
-                "created_at": datetime.now().isoformat()
-            },
-            "doctor@healthcare.ai": {
-                "user_id": "doc-001",
-                "email": "doctor@healthcare.ai",
-                "password_hash": self._hash_password("doctor123"),
-                "role": UserRole.CLINICIAN,
-                "name": "Dr. Smith",
-                "created_at": datetime.now().isoformat()
-            },
-            "patient@healthcare.ai": {
-                "user_id": "patient-001",
-                "email": "patient@healthcare.ai",
-                "password_hash": self._hash_password("patient123"),
-                "role": UserRole.PATIENT,
-                "name": "John Doe",
-                "created_at": datetime.now().isoformat()
-            }
-        }
+        # Create demo users if they don't exist
+        self._create_demo_users()
         
-        logger.info(f"[AuthService] Initialized with {len(self.users)} demo users")
+        logger.info(f"[AuthService] Initialized with database storage")
     
     def _hash_password(self, password: str) -> str:
         """Hash password with bcrypt"""
@@ -86,6 +67,55 @@ class AuthService:
     def _verify_password(self, password: str, password_hash: str) -> bool:
         """Verify password against hash"""
         return bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8'))
+    
+    def _create_demo_users(self):
+        """Create demo users if they don't exist"""
+        db = get_db_session()
+        try:
+            demo_users = [
+                {
+                    "user_id": "admin-001",
+                    "email": "admin@healthcare.ai",
+                    "password": "admin123",
+                    "name": "System Admin",
+                    "role": UserRole.ADMIN
+                },
+                {
+                    "user_id": "doc-001",
+                    "email": "doctor@healthcare.ai",
+                    "password": "doctor123",
+                    "name": "Dr. Smith",
+                    "role": UserRole.CLINICIAN
+                },
+                {
+                    "user_id": "patient-001",
+                    "email": "patient@healthcare.ai",
+                    "password": "patient123",
+                    "name": "John Doe",
+                    "role": UserRole.PATIENT
+                }
+            ]
+            
+            for user_data in demo_users:
+                # Check if user exists
+                existing = db.query(UserModel).filter(UserModel.email == user_data["email"]).first()
+                if not existing:
+                    user = UserModel(
+                        user_id=user_data["user_id"],
+                        email=user_data["email"],
+                        password_hash=self._hash_password(user_data["password"]),
+                        name=user_data["name"],
+                        role=user_data["role"],
+                        active=True
+                    )
+                    db.add(user)
+            
+            db.commit()
+        except Exception as e:
+            logger.error(f"[AuthService] Error creating demo users: {e}")
+            db.rollback()
+        finally:
+            db.close()
     
     def authenticate(self, email: str, password: str) -> Optional[Dict]:
         """
@@ -98,29 +128,37 @@ class AuthService:
         Returns:
             User data with token if successful, None otherwise
         """
-        user = self.users.get(email)
-        
-        if not user:
-            logger.warning(f"[AuthService] Login failed: User not found - {email}")
-            return None
-        
-        if not self._verify_password(password, user["password_hash"]):
-            logger.warning(f"[AuthService] Login failed: Invalid password - {email}")
-            return None
-        
-        # Generate JWT token
-        token = self.generate_token(user["user_id"], user["email"], user["role"])
-        
-        logger.success(f"[AuthService] Login successful - {email} ({user['role']})")
-        
-        return {
-            "user_id": user["user_id"],
-            "email": user["email"],
-            "name": user["name"],
-            "role": user["role"],
-            "token": token,
-            "expires_at": (datetime.now() + timedelta(hours=self.token_expiry_hours)).isoformat()
-        }
+        db = get_db_session()
+        try:
+            user = db.query(UserModel).filter(UserModel.email == email, UserModel.active == True).first()
+            
+            if not user:
+                logger.warning(f"[AuthService] Login failed: User not found - {email}")
+                return None
+            
+            if not self._verify_password(password, user.password_hash):
+                logger.warning(f"[AuthService] Login failed: Invalid password - {email}")
+                return None
+            
+            # Update last login
+            user.last_login = datetime.utcnow()
+            db.commit()
+            
+            # Generate JWT token
+            token = self.generate_token(user.user_id, user.email, user.role)
+            
+            logger.success(f"[AuthService] Login successful - {email} ({user.role})")
+            
+            return {
+                "user_id": user.user_id,
+                "email": user.email,
+                "name": user.name,
+                "role": user.role,
+                "token": token,
+                "expires_at": (datetime.now() + timedelta(hours=self.token_expiry_hours)).isoformat()
+            }
+        finally:
+            db.close()
     
     def generate_token(self, user_id: str, email: str, role: UserRole) -> str:
         """
@@ -212,55 +250,80 @@ class AuthService:
         Returns:
             User data if successful, None if email exists
         """
-        if email in self.users:
-            logger.warning(f"[AuthService] Registration failed: Email exists - {email}")
+        db = get_db_session()
+        try:
+            # Check if user exists
+            existing = db.query(UserModel).filter(UserModel.email == email).first()
+            if existing:
+                logger.warning(f"[AuthService] Registration failed: Email exists - {email}")
+                return None
+            
+            user_id = f"{role}-{secrets.token_hex(4)}"
+            
+            user = UserModel(
+                user_id=user_id,
+                email=email,
+                password_hash=self._hash_password(password),
+                name=name,
+                role=role,
+                active=True
+            )
+            
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+            
+            logger.success(f"[AuthService] User registered - {email} ({role})")
+            
+            return {
+                "user_id": user.user_id,
+                "email": user.email,
+                "name": user.name,
+                "role": user.role,
+                "created_at": user.created_at.isoformat()
+            }
+        except Exception as e:
+            logger.error(f"[AuthService] Registration error: {e}")
+            db.rollback()
             return None
-        
-        user_id = f"{role}-{secrets.token_hex(4)}"
-        
-        self.users[email] = {
-            "user_id": user_id,
-            "email": email,
-            "password_hash": self._hash_password(password),
-            "role": role,
-            "name": name,
-            "created_at": datetime.now().isoformat()
-        }
-        
-        logger.success(f"[AuthService] User registered - {email} ({role})")
-        
-        return {
-            "user_id": user_id,
-            "email": email,
-            "name": name,
-            "role": role
-        }
+        finally:
+            db.close()
     
     def get_user_by_id(self, user_id: str) -> Optional[Dict]:
         """Get user by ID"""
-        for user in self.users.values():
-            if user["user_id"] == user_id:
-                return {
-                    "user_id": user["user_id"],
-                    "email": user["email"],
-                    "name": user["name"],
-                    "role": user["role"],
-                    "created_at": user["created_at"]
-                }
-        return None
+        db = get_db_session()
+        try:
+            user = db.query(UserModel).filter(UserModel.user_id == user_id).first()
+            if not user:
+                return None
+            
+            return {
+                "user_id": user.user_id,
+                "email": user.email,
+                "name": user.name,
+                "role": user.role,
+                "created_at": user.created_at.isoformat()
+            }
+        finally:
+            db.close()
     
     def list_users(self) -> list:
         """List all users (admin only)"""
-        return [
-            {
-                "user_id": user["user_id"],
-                "email": user["email"],
-                "name": user["name"],
-                "role": user["role"],
-                "created_at": user["created_at"]
-            }
-            for user in self.users.values()
-        ]
+        db = get_db_session()
+        try:
+            users = db.query(UserModel).filter(UserModel.active == True).all()
+            return [
+                {
+                    "user_id": user.user_id,
+                    "email": user.email,
+                    "name": user.name,
+                    "role": user.role,
+                    "created_at": user.created_at.isoformat()
+                }
+                for user in users
+            ]
+        finally:
+            db.close()
 
 
 # Singleton instance

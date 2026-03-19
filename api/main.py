@@ -29,6 +29,7 @@ from services.citation_service import citation_service
 from services.monitoring_service import monitoring_service
 from services.alert_service import alert_engine
 from services.audit_service import audit_service
+from database.database import init_db
 from utils.config import config
 from utils.cache import response_cache
 from utils.rate_limiter import rate_limiter
@@ -48,6 +49,10 @@ router_agent: Optional[RouterAgent] = None
 async def lifespan(app: FastAPI):
     global pipeline, router_agent
     logger.info("Starting Healthcare RAG API...")
+
+    # Initialize database
+    logger.info("Initializing database...")
+    init_db()
 
     # Run ingest at startup if FAISS index doesn't exist yet.
     # This handles Render deployments where ingest is not run as a build step.
