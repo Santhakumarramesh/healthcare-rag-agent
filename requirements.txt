@@ -13,7 +13,7 @@ langgraph==0.4.1
 openai==1.78.0
 
 # Vector Stores (FAISS only — no sentence-transformers/torch)
-faiss-cpu==1.9.0
+faiss-cpu==1.9.0.post1
 pinecone==6.0.0
 
 # API Backend
@@ -28,7 +28,7 @@ rank-bm25==0.2.2
 # Data & Utilities
 pypdf==5.4.0
 tiktoken==0.9.0
-numpy==1.26.4
+numpy>=1.26.4
 pandas==2.2.3
 python-dotenv==1.1.0
 httpx==0.28.1
@@ -37,6 +37,6 @@ httpx==0.28.1
 loguru==0.7.3
 prometheus-client==0.22.0
 
-# Multi-Agent External Tools
-tavily-python==0.7.23
-langchain-nvidia-ai-endpoints==1.2.1
+# Multi-Agent External Tools (optional — lazy-imported, not required on Render)
+# tavily-python==0.7.23
+# langchain-nvidia-ai-endpoints==1.2.1
