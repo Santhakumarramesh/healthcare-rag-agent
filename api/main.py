@@ -31,15 +31,16 @@ from api.records import router as records_router
 from api.auth import router as auth_router
 from api.admin import router as admin_router
 from api.routes.reports import router as reports_router
-from services.memory_service import memory_service
-from services.citation_service import citation_service
-from services.monitoring_service import monitoring_service
-from services.alert_service import alert_engine
-from services.audit_service import audit_service
+# Lazy load services to avoid blocking startup
+# from services.memory_service import memory_service
+# from services.citation_service import citation_service
+# from services.monitoring_service import monitoring_service
+# from services.alert_service import alert_engine
+# from services.audit_service import audit_service
 from database.database import init_db
 from utils.config import config
-from utils.cache import response_cache
-from utils.rate_limiter import rate_limiter
+# from utils.cache import response_cache
+# from utils.rate_limiter import rate_limiter
 from utils.hallucination_detector import detect_hallucination
 
 REQUEST_COUNT = Counter("rag_requests_total", "Total RAG requests", ["intent"])
@@ -125,6 +126,72 @@ def get_router() -> RouterAgent:
             logger.error(f"Failed to load router: {e}")
             raise HTTPException(status_code=503, detail="Router initialization failed")
     return router_agent
+
+
+# Lazy loading for services (prevents blocking startup)
+_memory_service = None
+_citation_service = None
+_monitoring_service = None
+_alert_engine = None
+_audit_service = None
+_response_cache = None
+_rate_limiter = None
+
+
+def get_memory_service():
+    global _memory_service
+    if _memory_service is None:
+        from services.memory_service import memory_service
+        _memory_service = memory_service
+    return _memory_service
+
+
+def get_citation_service():
+    global _citation_service
+    if _citation_service is None:
+        from services.citation_service import citation_service
+        _citation_service = citation_service
+    return _citation_service
+
+
+def get_monitoring_service():
+    global _monitoring_service
+    if _monitoring_service is None:
+        from services.monitoring_service import monitoring_service
+        _monitoring_service = monitoring_service
+    return _monitoring_service
+
+
+def get_alert_engine():
+    global _alert_engine
+    if _alert_engine is None:
+        from services.alert_service import alert_engine
+        _alert_engine = alert_engine
+    return _alert_engine
+
+
+def get_audit_service():
+    global _audit_service
+    if _audit_service is None:
+        from services.audit_service import audit_service
+        _audit_service = audit_service
+    return _audit_service
+
+
+def get_response_cache():
+    global _response_cache
+    if _response_cache is None:
+        from utils.cache import response_cache
+        _response_cache = response_cache
+    return _response_cache
+
+
+def get_rate_limiter():
+    global _rate_limiter
+    if _rate_limiter is None:
+        from utils.rate_limiter import rate_limiter
+        _rate_limiter = rate_limiter
+    return _rate_limiter
 
 
 class ChatRequest(BaseModel):
@@ -213,6 +280,7 @@ async def metrics():
 @app.get("/history/{session_id}", tags=["Memory"])
 async def get_conversation_history(session_id: str):
     """Get conversation history for a session"""
+    memory_service = get_memory_service()
     history = memory_service.get_conversation_history(session_id)
     stats = memory_service.get_session_stats(session_id)
     
@@ -226,6 +294,7 @@ async def get_conversation_history(session_id: str):
 @app.delete("/history/{session_id}", tags=["Memory"])
 async def clear_conversation_history(session_id: str):
     """Clear conversation history for a session"""
+    memory_service = get_memory_service()
     memory_service.clear_session(session_id)
     return {"message": "Session history cleared", "session_id": session_id}
 
@@ -233,6 +302,7 @@ async def clear_conversation_history(session_id: str):
 @app.get("/monitoring/stats", tags=["Monitoring"])
 async def get_monitoring_stats():
     """Get real-time system statistics"""
+    monitoring_service = get_monitoring_service()
     stats = monitoring_service.get_real_time_stats()
     time_series = monitoring_service.get_time_series_data(hours=24)
     query_type_data = monitoring_service.get_query_type_chart_data()
@@ -253,11 +323,13 @@ async def chat(request: ChatRequest):
 
     # Rate limiting
     client_id = request.session_id or "anonymous"
+    rate_limiter = get_rate_limiter()
     allowed, reason = rate_limiter.is_allowed(client_id)
     if not allowed:
         raise HTTPException(status_code=429, detail=reason)
 
     # Check cache first
+    response_cache = get_response_cache()
     cached_response = response_cache.get(request.query)
     if cached_response:
         logger.info(f"Returning cached response for query: {request.query[:40]}...")
@@ -266,6 +338,7 @@ async def chat(request: ChatRequest):
     start_time = time.time()
     try:
         # 1. ROUTE THE QUERY
+        memory_service = get_memory_service()
         session_stats = memory_service.get_session_stats(client_id)
         route_info = await current_router.route(
             request.query,
@@ -324,6 +397,7 @@ async def chat(request: ChatRequest):
         latency_ms = (time.time() - start_time) * 1000
 
         # 6. FORMAT CITATIONS
+        citation_service = get_citation_service()
         raw_sources = result.get("sources", [])
         formatted_citations = citation_service.format_citations(raw_sources, max_sources=5)
         citation_summary = citation_service.get_citation_summary(formatted_citations)
@@ -352,9 +426,11 @@ async def chat(request: ChatRequest):
         )
 
         # 9. CHECK FOR CLINICAL ALERTS
+        alert_engine = get_alert_engine()
         clinical_alerts = alert_engine.check_query(request.query)
         
         # Log alerts if any
+        audit_service = get_audit_service()
         for alert in clinical_alerts:
             audit_service.log_alert(
                 user_id=client_id,
@@ -430,6 +506,7 @@ async def chat(request: ChatRequest):
         QUALITY_SCORE_HIST.observe(enhanced_confidence)
         
         # Record in monitoring service
+        monitoring_service = get_monitoring_service()
         monitoring_service.record_query(
             query_type=route_info["type"],
             latency_ms=latency_ms,
@@ -438,7 +515,7 @@ async def chat(request: ChatRequest):
             success=True
         )
         
-        # Log query in audit service
+        # Log query in audit service (already loaded earlier in function)
         audit_service.log_query(
             user_id=client_id,
             query=request.query,
@@ -493,7 +570,7 @@ async def chat(request: ChatRequest):
         })
 
         # 12. CACHE THE RESPONSE
-        response_cache.set(request.query, response_data)
+        response_cache.set(request.query, response_data)  # Already loaded at function start
 
         return ChatResponse(**response_data)
     except Exception as e:
