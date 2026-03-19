@@ -71,8 +71,7 @@ async def test_router_blocks_out_of_scope(base_state):
 def test_retriever_finds_relevant_content():
     """Test that the HybridRetriever returns valid chunks for a medical query."""
     with patch("vectorstore.retriever.HybridRetriever._load_index"), \
-         patch("vectorstore.retriever.SentenceTransformer"), \
-         patch("vectorstore.retriever.CrossEncoder"):
+         patch("vectorstore.retriever.SentenceTransformer"):
 
         retriever = HybridRetriever()
         retriever.index = MagicMock()
