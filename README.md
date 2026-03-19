@@ -79,14 +79,9 @@ cp .env.example .env
 
 ### 4. Run the Application
 
-**Option A: Simple UI (Recommended)**
+**UI (AI Healthcare Copilot)**
 ```bash
-streamlit run streamlit_app/app_v2.py
-```
-
-**Option B: Advanced UI**
-```bash
-streamlit run streamlit_app/app.py
+streamlit run streamlit_app/app_healthcare.py --server.port 8501
 ```
 
 **API Server**

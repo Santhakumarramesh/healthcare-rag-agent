@@ -29,8 +29,8 @@ def main():
         os.system(f"uvicorn api.main:app --host 0.0.0.0 --port {port} {reload_flag}".strip())
 
     elif cmd == "ui":
-        print("🎨 Starting Streamlit UI on http://localhost:8501 ...")
-        os.system("streamlit run streamlit_app/app.py --server.port 8501")
+        print("Starting Streamlit UI on http://localhost:8501 ...")
+        os.system("streamlit run streamlit_app/app_healthcare.py --server.port 8501")
 
     elif cmd == "ingest":
         print("🧠 Ingesting healthcare knowledge base into vector store...")

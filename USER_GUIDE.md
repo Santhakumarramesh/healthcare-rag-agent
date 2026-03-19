@@ -14,10 +14,10 @@ streamlit run streamlit_app/app_v2.py
 
 **Best for**: First-time users, demos, quick access
 
-### Option 2: Advanced UI
+### Option 2: Full UI (same as Option 1)
 
 ```bash
-streamlit run streamlit_app/app.py
+streamlit run streamlit_app/app_healthcare.py --server.port 8501
 ```
 
 **Best for**: Power users, technical demos, full features
