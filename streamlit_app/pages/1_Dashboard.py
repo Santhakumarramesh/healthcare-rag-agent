@@ -49,24 +49,44 @@ st.markdown("### Quick Actions")
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
-    quick_action_card("Drug Information", "Search medications and interactions", "drug")
+    st.markdown('''
+    <div style="background: white; border: 1px solid #D9E2EC; border-radius: 16px; padding: 20px; text-align: center;">
+        <div style="font-size: 16px; font-weight: 600; color: #102A43; margin-bottom: 6px;">Drug Information</div>
+        <div style="font-size: 13px; color: #486581;">Search medications</div>
+    </div>
+    ''', unsafe_allow_html=True)
     if st.button("Learn More", key="drug_btn", use_container_width=True):
         st.session_state["preset_query"] = "Tell me about common drug interactions"
         st.switch_page("pages/2_Ask_AI.py")
 
 with col2:
-    quick_action_card("Symptom Guidance", "Check symptoms and get guidance", "symptom")
+    st.markdown('''
+    <div style="background: white; border: 1px solid #D9E2EC; border-radius: 16px; padding: 20px; text-align: center;">
+        <div style="font-size: 16px; font-weight: 600; color: #102A43; margin-bottom: 6px;">Symptom Guidance</div>
+        <div style="font-size: 13px; color: #486581;">Check symptoms</div>
+    </div>
+    ''', unsafe_allow_html=True)
     if st.button("Learn More", key="symptom_btn", use_container_width=True):
         st.session_state["preset_query"] = "What could cause persistent headaches?"
         st.switch_page("pages/2_Ask_AI.py")
 
 with col3:
-    quick_action_card("Lab Analysis", "Upload and analyze lab reports", "lab")
+    st.markdown('''
+    <div style="background: white; border: 1px solid #D9E2EC; border-radius: 16px; padding: 20px; text-align: center;">
+        <div style="font-size: 16px; font-weight: 600; color: #102A43; margin-bottom: 6px;">Lab Analysis</div>
+        <div style="font-size: 13px; color: #486581;">Upload reports</div>
+    </div>
+    ''', unsafe_allow_html=True)
     if st.button("Analyze Now", key="lab_btn", use_container_width=True):
         st.switch_page("pages/3_Report_Analyzer.py")
 
 with col4:
-    quick_action_card("Research Summary", "Get medical research insights", "research")
+    st.markdown('''
+    <div style="background: white; border: 1px solid #D9E2EC; border-radius: 16px; padding: 20px; text-align: center;">
+        <div style="font-size: 16px; font-weight: 600; color: #102A43; margin-bottom: 6px;">Research Summary</div>
+        <div style="font-size: 13px; color: #486581;">Medical research</div>
+    </div>
+    ''', unsafe_allow_html=True)
     if st.button("Learn More", key="research_btn", use_container_width=True):
         st.session_state["preset_query"] = "Summarize the latest research on diabetes management"
         st.switch_page("pages/2_Ask_AI.py")
