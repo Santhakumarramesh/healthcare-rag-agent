@@ -70,10 +70,10 @@ render_sidebar_nav("Home")
 # ============================================================================
 
 def go_to_analyze_report():
-    st.switch_page("pages/healthcare/1_Analyze_Report.py")
+    st.switch_page("pages/1_Analyze_Report.py")
 
 def go_to_followup():
-    st.switch_page("pages/healthcare/3_Followup_Monitor.py")
+    st.switch_page("pages/3_Followup_Monitor.py")
 
 render_hero_banner(
     title="AI Healthcare Copilot",
@@ -105,7 +105,7 @@ with col1:
         icon="",
         button_text="Start Analysis",
         button_key="mode_analyze",
-        action=lambda: st.switch_page("pages/healthcare/1_Analyze_Report.py")
+        action=lambda: st.switch_page("pages/1_Analyze_Report.py")
     )
 
 with col2:
@@ -115,7 +115,7 @@ with col2:
         icon="",
         button_text="Ask Question",
         button_key="mode_ask",
-        action=lambda: st.switch_page("pages/healthcare/2_Ask_AI.py")
+        action=lambda: st.switch_page("pages/2_Ask_AI.py")
     )
 
 with col3:
@@ -125,7 +125,7 @@ with col3:
         icon="",
         button_text="Start Follow-up",
         button_key="mode_followup",
-        action=lambda: st.switch_page("pages/healthcare/3_Followup_Monitor.py")
+        action=lambda: st.switch_page("pages/3_Followup_Monitor.py")
     )
 
 st.markdown("<br><br>", unsafe_allow_html=True)
@@ -241,7 +241,7 @@ with col_right:
             
             st.markdown(f"""
             <div class="risk-alert risk-alert-high" style="margin-bottom: 1rem;">
-                <div class="risk-alert-icon">⚠️</div>
+                <div class="risk-alert-icon">!</div>
                 <div class="risk-alert-content">
                     <div class="risk-alert-title">High Risk - {date}</div>
                     <div class="risk-alert-message">{risk_msg[:100]}...</div>
@@ -278,7 +278,7 @@ with col_right:
         """, unsafe_allow_html=True)
         
         if st.button("Go to Follow-up Monitor", key="goto_followup", use_container_width=True):
-            st.switch_page("pages/healthcare/3_Followup_Monitor.py")
+            st.switch_page("pages/3_Followup_Monitor.py")
     
     if not high_risk_updates and not low_conf_analyses and st.session_state.active_followup_cases == 0:
         st.markdown("""
@@ -314,15 +314,15 @@ col_f1, col_f2, col_f3, col_f4 = st.columns(4, gap="large")
 
 with col_f1:
     if st.button("View Records Timeline", use_container_width=True):
-        st.switch_page("pages/healthcare/4_Records_Timeline.py")
+        st.switch_page("pages/4_Records_Timeline.py")
 
 with col_f2:
     if st.button("System Monitoring", use_container_width=True):
-        st.switch_page("pages/healthcare/5_Monitoring.py")
+        st.switch_page("pages/5_Monitoring.py")
 
 with col_f3:
     if st.button("Settings", use_container_width=True):
-        st.switch_page("pages/healthcare/6_Settings.py")
+        st.switch_page("pages/6_Settings.py")
 
 with col_f4:
     if st.button("Help & Documentation", use_container_width=True):
