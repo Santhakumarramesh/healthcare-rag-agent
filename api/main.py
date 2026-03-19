@@ -64,31 +64,12 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Database initialization failed: {e} — continuing without database")
 
-    # Run ingest at startup if FAISS index doesn't exist yet.
-    # This handles Render deployments where ingest is not run as a build step.
-    # No local knowledge base — system relies on OpenAI's knowledge + user-uploaded documents
-    index_path = Path(config.FAISS_INDEX_PATH)
-    if not (index_path / "index.faiss").exists():
-        logger.info("FAISS index not found — running ingest now...")
-        try:
-            from vectorstore.ingest import DocumentIngestionPipeline
-            pipeline_ingest = DocumentIngestionPipeline()
-            # Empty index — will be populated by user uploads only
-            pipeline_ingest.run(extra_paths=[], force_rebuild=True)
-            logger.success("Ingest complete.")
-        except Exception as e:
-            logger.error(f"Ingest failed: {e} — continuing without pre-built index.")
-
-    try:
-        pipeline = HealthcareRAGPipeline()
-        router_agent = RouterAgent()
-        logger.success("Pipeline and Router loaded successfully!")
-    except Exception as e:
-        logger.error(f"Failed to initialize pipeline: {e}")
-        logger.warning("Continuing with limited functionality...")
-        # Don't raise - allow API to start even if pipeline fails
-        pipeline = None
-        router_agent = None
+    # CRITICAL: Do NOT load pipeline on startup - causes Render timeout
+    # Pipeline will be lazy-loaded on first request
+    logger.info("API startup complete - pipeline will load on first request")
+    pipeline = None
+    router_agent = None
+    
     yield
     logger.info("Shutting down...")
 
@@ -112,6 +93,38 @@ app.include_router(records_router)
 app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(reports_router)
+
+
+# ============================================================================
+# LAZY LOADING FUNCTIONS (prevents Render timeout)
+# ============================================================================
+
+def get_pipeline() -> HealthcareRAGPipeline:
+    """Lazy-load pipeline on first request to avoid startup timeout."""
+    global pipeline
+    if pipeline is None:
+        logger.info("Lazy-loading HealthcareRAGPipeline...")
+        try:
+            pipeline = HealthcareRAGPipeline()
+            logger.success("Pipeline loaded successfully!")
+        except Exception as e:
+            logger.error(f"Failed to load pipeline: {e}")
+            raise HTTPException(status_code=503, detail="Pipeline initialization failed")
+    return pipeline
+
+
+def get_router() -> RouterAgent:
+    """Lazy-load router agent on first request."""
+    global router_agent
+    if router_agent is None:
+        logger.info("Lazy-loading RouterAgent...")
+        try:
+            router_agent = RouterAgent()
+            logger.success("Router loaded successfully!")
+        except Exception as e:
+            logger.error(f"Failed to load router: {e}")
+            raise HTTPException(status_code=503, detail="Router initialization failed")
+    return router_agent
 
 
 class ChatRequest(BaseModel):
@@ -182,8 +195,8 @@ async def health_check():
             index_size = 0
     
     return HealthResponse(
-        status="healthy" if pipeline else "degraded",
-        pipeline_loaded=pipeline is not None,
+        status="healthy",  # API is healthy even if pipeline not loaded yet
+        pipeline_loaded=pipeline is not None,  # Will be False until first request
         vector_store_ready=vs_ready,
         faiss_index_exists=vs_ready,
         index_size=index_size,
@@ -234,8 +247,9 @@ async def get_monitoring_stats():
 
 @app.post("/chat", response_model=ChatResponse, tags=["RAG"])
 async def chat(request: ChatRequest):
-    if not pipeline or not router_agent:
-        raise HTTPException(status_code=503, detail="Pipeline not initialized")
+    # Lazy-load pipeline and router on first request
+    current_pipeline = get_pipeline()
+    current_router = get_router()
 
     # Rate limiting
     client_id = request.session_id or "anonymous"
@@ -253,7 +267,7 @@ async def chat(request: ChatRequest):
     try:
         # 1. ROUTE THE QUERY
         session_stats = memory_service.get_session_stats(client_id)
-        route_info = await router_agent.route(
+        route_info = await current_router.route(
             request.query,
             context={"has_previous_interaction": session_stats.get("interaction_count", 0) > 0}
         )
@@ -306,7 +320,7 @@ async def chat(request: ChatRequest):
             enhanced_query = f"{conversation_context}\n\nCurrent question: {request.query}"
         
         # 5. RUN RAG PIPELINE
-        result = await pipeline.run(enhanced_query)
+        result = await current_pipeline.run(enhanced_query)
         latency_ms = (time.time() - start_time) * 1000
 
         # 6. FORMAT CITATIONS
@@ -489,12 +503,12 @@ async def chat(request: ChatRequest):
 
 @app.post("/chat/stream", tags=["RAG"])
 async def chat_stream(request: ChatRequest):
-    if not pipeline:
-        raise HTTPException(status_code=503, detail="Pipeline not initialized")
+    # Lazy-load pipeline on first request
+    current_pipeline = get_pipeline()
 
     async def event_generator():
         try:
-            async for chunk in pipeline.astream(request.query):
+            async for chunk in current_pipeline.astream(request.query):
                 if isinstance(chunk, str):
                     # Standard token chunk
                     yield f"data: {json.dumps({'type': 'token', 'content': chunk})}\n\n"
@@ -512,9 +526,9 @@ async def chat_stream(request: ChatRequest):
 
 @app.post("/reset", tags=["RAG"])
 async def reset_conversation():
-    if not pipeline:
-        raise HTTPException(status_code=503, detail="Pipeline not initialized")
-    pipeline.reset_conversation()
+    # Lazy-load pipeline on first request
+    current_pipeline = get_pipeline()
+    current_pipeline.reset_conversation()
     return {"message": "Conversation history cleared.", "status": "ok"}
 
 
