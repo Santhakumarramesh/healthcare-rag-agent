@@ -130,6 +130,8 @@ class MonitoringService:
             "avg_confidence": round(avg_confidence, 3),
             "success_rate": round(success_rate, 3),
             "error_count": self.error_count,
+            "emergency_count": self.query_type_counts.get("emergency", 0),
+            "vector_store_size": 0,  # populated by health check if needed
             "query_type_distribution": query_type_dist,
             "confidence_distribution": confidence_dist,
             "latency_percentiles": {
@@ -137,7 +139,17 @@ class MonitoringService:
                 "p95": round(p95, 2),
                 "p99": round(p99, 2)
             },
-            "recent_queries_count": len(recent_metrics)
+            "recent_queries_count": len(recent_metrics),
+            "recent_queries": [
+                {
+                    "timestamp": m.timestamp,
+                    "query_type": m.query_type,
+                    "confidence": m.confidence,
+                    "latency_ms": m.latency_ms,
+                    "is_emergency": m.query_type == "emergency",
+                }
+                for m in list(self.metrics)[-50:]
+            ],
         }
     
     def get_time_series_data(self, hours: int = 24) -> Dict:
@@ -188,10 +200,13 @@ class MonitoringService:
             "avg_confidence": 0,
             "success_rate": 1.0,
             "error_count": 0,
+            "emergency_count": 0,
+            "vector_store_size": 0,
             "query_type_distribution": {},
             "confidence_distribution": {"high": 0, "medium": 0, "low": 0},
             "latency_percentiles": {"p50": 0, "p95": 0, "p99": 0},
-            "recent_queries_count": 0
+            "recent_queries_count": 0,
+            "recent_queries": [],
         }
 
 

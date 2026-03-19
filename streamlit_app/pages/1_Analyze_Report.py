@@ -174,7 +174,8 @@ with col_left:
     if st.session_state.report_analysis:
         analysis = st.session_state.report_analysis
         extracted_values = analysis.get("extracted_values", [])
-        abnormal_count = len([v for v in extracted_values if v.get("is_abnormal")])
+        abnormal_count = len([v for v in extracted_values 
+                              if v.get("is_abnormal") or v.get("flag") in ("H","L","HIGH","LOW","ABNORMAL")])
         
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown("""

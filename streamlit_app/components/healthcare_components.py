@@ -25,7 +25,7 @@ def render_app_shell():
 
 
 def render_sidebar_nav(current_page: str):
-    """Render sidebar navigation."""
+    """Render sidebar navigation using st.sidebar.page_link for reliable multipage routing."""
     st.sidebar.markdown("""
     <div style="text-align: center; padding: 1.5rem 0; border-bottom: 1px solid var(--border-light);">
         <div style="font-size: 1.5rem; font-weight: 700; color: var(--navy-deep);">
@@ -39,30 +39,31 @@ def render_sidebar_nav(current_page: str):
     
     st.sidebar.markdown("<br>", unsafe_allow_html=True)
     
-    # Navigation links
-    pages = {
-        "Home": "app_healthcare.py",
-        "Analyze Report": "pages/1_Analyze_Report.py",
-        "Ask AI": "pages/2_Ask_AI.py",
-        "Follow-up Monitor": "pages/3_Followup_Monitor.py",
-        "Records Timeline": "pages/4_Records_Timeline.py",
-        "Monitoring": "pages/5_Monitoring.py",
-        "Settings": "pages/6_Settings.py"
-    }
+    # Use Streamlit's built-in page_link for reliable multipage navigation
+    from pathlib import Path
+    base = Path(__file__).parent.parent
+    pages = [
+        ("Home",             base / "app_healthcare.py"),
+        ("Analyze Report",   base / "pages" / "1_Analyze_Report.py"),
+        ("Ask AI",           base / "pages" / "2_Ask_AI.py"),
+        ("Follow-up Monitor",base / "pages" / "3_Followup_Monitor.py"),
+        ("Records Timeline", base / "pages" / "4_Records_Timeline.py"),
+        ("Monitoring",       base / "pages" / "5_Monitoring.py"),
+        ("Settings",         base / "pages" / "6_Settings.py"),
+    ]
     
-    for page_name, page_path in pages.items():
-        active = "background: var(--info-light); border-left: 3px solid var(--teal-primary);" if page_name == current_page else ""
-        st.sidebar.markdown(f"""
-        <div style="padding: 0.75rem 1rem; margin-bottom: 0.25rem; cursor: pointer; border-radius: 8px; {active}">
-            <a href="{page_path}" style="text-decoration: none; color: var(--text-primary); font-weight: 500;">
+    for page_name, page_path in pages:
+        if page_name == current_page:
+            st.sidebar.markdown(f"""
+            <div style="padding: 0.5rem 1rem; margin-bottom: 0.25rem; border-radius: 8px;
+                        background: var(--info-light); border-left: 3px solid var(--teal-primary);
+                        font-weight: 600; color: var(--teal-primary); font-size: 0.95rem;">
                 {page_name}
-            </a>
-        </div>
-        """, unsafe_allow_html=True)
+            </div>""", unsafe_allow_html=True)
+        else:
+            st.sidebar.page_link(str(page_path), label=page_name)
     
     st.sidebar.markdown("<br><br>", unsafe_allow_html=True)
-    
-    # System status
     render_sidebar_system_status()
 
 
@@ -290,7 +291,7 @@ def render_safety_notice(message: str = None):
 
 
 def render_important_values_table(values: List[Dict[str, Any]]):
-    """Render important values table."""
+    """Render important values table. Handles both ExtractedValue schema (name/reference/flag) and legacy (test_name/reference_range/is_abnormal)."""
     if not values:
         st.info("No extracted values available")
         return
@@ -310,16 +311,23 @@ def render_important_values_table(values: List[Dict[str, Any]]):
     """, unsafe_allow_html=True)
     
     for val in values:
-        is_abnormal = val.get("is_abnormal", False)
+        # Support both schema formats
+        test_name = val.get("test_name") or val.get("name", "N/A")
+        value = val.get("value", "N/A")
+        unit = val.get("unit", "")
+        ref_range = val.get("reference_range") or val.get("reference", "N/A")
+        # is_abnormal (legacy) or flag field from new schema
+        flag = val.get("flag", "")
+        is_abnormal = val.get("is_abnormal", False) or flag in ("H", "L", "HIGH", "LOW", "ABNORMAL")
         row_class = "value-abnormal" if is_abnormal else "value-normal"
-        status = "⚠️ Abnormal" if is_abnormal else "✓ Normal"
+        status = f"⚠️ {flag}" if flag and is_abnormal else ("⚠️ Abnormal" if is_abnormal else "✓ Normal")
         
         st.markdown(f"""
         <tr class="{row_class}">
-            <td>{val.get('test_name', 'N/A')}</td>
-            <td><strong>{val.get('value', 'N/A')}</strong></td>
-            <td>{val.get('unit', '')}</td>
-            <td>{val.get('reference_range', 'N/A')}</td>
+            <td>{test_name}</td>
+            <td><strong>{value}</strong></td>
+            <td>{unit}</td>
+            <td>{ref_range}</td>
             <td>{status}</td>
         </tr>
         """, unsafe_allow_html=True)
@@ -328,10 +336,13 @@ def render_important_values_table(values: List[Dict[str, Any]]):
 
 
 def render_source_citation_card(source: Dict[str, Any], index: int):
-    """Render source citation card."""
+    """Render source citation card. Handles both report and chat API source formats."""
     title = source.get("title", f"Source {index}")
-    content = source.get("content", "")[:200] + "..."
-    relevance = source.get("relevance_score", 0)
+    # /reports returns 'preview'; /chat returns 'content'
+    raw_content = source.get("content") or source.get("preview") or ""
+    content = (raw_content[:200] + "...") if len(raw_content) > 200 else raw_content
+    # /reports returns 'score'; /chat returns 'relevance_score'
+    relevance = source.get("relevance_score") or source.get("score") or 0
     category = source.get("category", "Medical")
     
     st.markdown(f"""

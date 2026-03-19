@@ -42,7 +42,9 @@ render_page_header(
 try:
     response = requests.get(f"{API_BASE_URL}/monitoring/stats", timeout=10)
     if response.status_code == 200:
-        stats = response.json()
+        raw = response.json()
+        # API returns {"stats": {...}, "time_series": {...}, ...}
+        stats = raw.get("stats") if isinstance(raw.get("stats"), dict) else raw
     else:
         stats = None
 except:
