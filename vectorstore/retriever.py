@@ -75,7 +75,11 @@ class HybridRetriever:
         Fall back to SentenceTransformer locally when no API key is configured.
         This must stay consistent with ingest.py's _get_embedder() to avoid dimension mismatches.
         """
-        if config.OPENAI_API_KEY and config.OPENAI_API_KEY not in ("", "sk-your-key-here"):
+        key = (config.OPENAI_API_KEY or "").strip()
+        PLACEHOLDERS = {"sk-your-key-here", "sk-placeholder", "your-key-here", ""}
+        has_real_key = len(key) > 30 and key not in PLACEHOLDERS
+
+        if has_real_key:
             from langchain_openai import OpenAIEmbeddings
             logger.info("Using OpenAI embeddings (text-embedding-3-small)")
             self._openai_embedder = OpenAIEmbeddings(

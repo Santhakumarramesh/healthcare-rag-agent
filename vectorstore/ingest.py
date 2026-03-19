@@ -24,20 +24,19 @@ def _get_embedder():
     """
     Use OpenAI embeddings in production (lightweight, no torch).
     Fall back to SentenceTransformer locally when no API key is set.
-    Raises RuntimeError if neither is available.
     """
     key = (config.OPENAI_API_KEY or "").strip()
-    placeholder = ("sk-your-key-here", "sk-placeholder", "", "sk-")
-    has_real_key = key and not any(key.startswith(p) for p in placeholder) and len(key) > 20
+    # A real OpenAI key is >40 chars and is NOT a known placeholder string
+    PLACEHOLDERS = {"sk-your-key-here", "sk-placeholder", "your-key-here", ""}
+    has_real_key = len(key) > 30 and key not in PLACEHOLDERS
 
     if has_real_key:
         from langchain_openai import OpenAIEmbeddings
         logger.info("Using OpenAI embeddings (text-embedding-3-small)")
-        embedder = OpenAIEmbeddings(
+        return OpenAIEmbeddings(
             model="text-embedding-3-small",
             openai_api_key=key,
-        )
-        return embedder, 1536
+        ), 1536
 
     # Fallback: SentenceTransformer (local, no API key needed)
     try:
