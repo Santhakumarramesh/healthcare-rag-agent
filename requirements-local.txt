@@ -1,5 +1,7 @@
 # ============================================================
-# requirements.txt — FULL LOCAL DEVELOPMENT
+# requirements-local.txt — FULL LOCAL DEVELOPMENT
+# Includes heavy ML deps (sentence-transformers, ragas, etc.)
+# NOT used on Render — use requirements.txt for deployment
 # ============================================================
 # Core LLM & Orchestration
 langchain==0.3.25

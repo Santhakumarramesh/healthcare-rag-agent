@@ -1,7 +1,7 @@
 # ============================================================
-# requirements-deploy.txt — RENDER PRODUCTION (lightweight)
-# Strips heavy ML deps: torch, sentence-transformers, ragas
-# Uses OpenAI embeddings instead of local SentenceTransformer
+# requirements.txt — RENDER PRODUCTION (lightweight)
+# No torch · no sentence-transformers · no ragas · no CUDA
+# Uses OpenAI embeddings (text-embedding-3-small) instead
 # ============================================================
 
 # Core LLM & Orchestration
