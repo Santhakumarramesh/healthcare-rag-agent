@@ -14,7 +14,8 @@ openai==1.78.0
 
 # Vector Stores
 faiss-cpu==1.9.0.post1
-pinecone==6.0.0
+# pinecone==6.0.0  # Optional — only needed if VECTOR_STORE_TYPE=pinecone
+#                  # Uncomment and set PINECONE_API_KEY in .env to enable
 
 # API Backend
 fastapi==0.115.12

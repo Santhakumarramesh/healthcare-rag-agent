@@ -1,30 +1,66 @@
 version: "3.9"
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Healthcare RAG Agent — Docker Compose (production-ready)
+# ─────────────────────────────────────────────────────────────────────────────
+
 services:
+  # ── FastAPI backend ──────────────────────────────────────────────────────────
   api:
     build: .
+    image: healthcare-rag-api:latest
+    restart: unless-stopped          # Auto-restart on crash or host reboot
     ports:
       - "8000:8000"
     environment:
+      # ── Required ──────────────────────────────────────────────────────────
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
       - EMBEDDING_MODEL=${EMBEDDING_MODEL:-text-embedding-3-small}
+
+      # ── Vector store ──────────────────────────────────────────────────────
       - FAISS_INDEX_PATH=./vectorstore/faiss_index
-      - VECTOR_STORE_TYPE=faiss
+      - VECTOR_STORE_TYPE=${VECTOR_STORE_TYPE:-faiss}
+
+      # ── Security ──────────────────────────────────────────────────────────
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:8501}
+
+      # ── Monitoring ────────────────────────────────────────────────────────
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE:-0.1}
+
+      # ── App ───────────────────────────────────────────────────────────────
       - APP_ENV=production
-      - LOG_LEVEL=INFO
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
     volumes:
-      - ./vectorstore/faiss_index:/app/vectorstore/faiss_index
-      - ./logs:/app/logs
-    command: uvicorn api.main:app --host 0.0.0.0 --port 8000
+      - faiss_data:/app/vectorstore/faiss_index
+      - log_data:/app/logs
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
+      start_period: 60s              # Give time for background FAISS ingest
       retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
 
+  # ── Streamlit UI ─────────────────────────────────────────────────────────────
   ui:
     build: .
+    image: healthcare-rag-ui:latest
+    restart: unless-stopped
     ports:
       - "8501:8501"
     depends_on:
@@ -32,4 +68,28 @@ services:
         condition: service_healthy
     environment:
       - API_BASE_URL=http://api:8000
-    command: streamlit run streamlit_app/app_healthcare.py --server.port 8501 --server.address 0.0.0.0 --server.headless true
+      - APP_ENV=production
+    command: >
+      streamlit run streamlit_app/app_healthcare.py
+      --server.port 8501
+      --server.address 0.0.0.0
+      --server.headless true
+      --server.enableCORS false
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# ── Named volumes (persist across container recreations) ─────────────────────
+volumes:
+  faiss_data:
+  log_data:

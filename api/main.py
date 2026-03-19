@@ -55,45 +55,35 @@ async def lifespan(app: FastAPI):
     global pipeline, router_agent
     logger.info("Starting Healthcare RAG API...")
 
-    # NO blocking init - start immediately so Render port binding succeeds
+    # Pipeline and router are lazy-loaded on first request — no blocking init.
+    # This ensures Render (and any free-tier host) binds the port immediately.
     pipeline = None
     router_agent = None
 
-    # Load routers (required for /reports, /auth, etc.)
+    # Load API routers (lightweight — no ML imports)
     _load_routers()
 
-    # Run ingest in background — builds FAISS index using OPENAI_API_KEY
-    # This runs AFTER the port is bound, so Render doesn't time out
-    asyncio.create_task(_background_ingest())
+    # ── Index check at startup ────────────────────────────────────────────────
+    # The FAISS index must be pre-built locally and committed to the repo
+    # (or provided via a mounted volume / object-store download at build time).
+    # We deliberately do NOT build it here; doing so at runtime on a free-tier
+    # host causes port-binding timeouts and unpredictable cold-start failures.
+    # To build the index run:  python vectorstore/ingest.py
+    # or use the helper script: bash scripts/build_index_locally.sh
+    _index_path = Path(config.FAISS_INDEX_PATH).resolve()
+    if (_index_path / "index.faiss").exists():
+        logger.success(f"[Startup] FAISS index found at {_index_path} ✓")
+    else:
+        logger.warning(
+            f"[Startup] FAISS index NOT found at {_index_path}. "
+            "Chat queries will return a 503 until the index is available. "
+            "Build it locally with: python vectorstore/ingest.py"
+        )
 
-    logger.info("API startup complete - ready to serve")
-    
+    logger.info("API startup complete — ready to serve (port bound)")
+
     yield
     logger.info("Shutting down...")
-
-
-async def _background_ingest():
-    """Build FAISS index in background after startup. Safe to re-run."""
-    await asyncio.sleep(2)  # Let uvicorn fully start first
-    try:
-        from pathlib import Path
-        index_path = Path(config.FAISS_INDEX_PATH).resolve()
-        if (index_path / "index.faiss").exists():
-            logger.info("[Ingest] FAISS index already exists — skipping rebuild")
-            return
-        logger.info("[Ingest] Building FAISS index in background...")
-        import subprocess, sys
-        result = subprocess.run(
-            [sys.executable, "vectorstore/ingest.py"],
-            capture_output=True, text=True, timeout=120
-        )
-        if result.returncode == 0:
-            logger.success("[Ingest] FAISS index built successfully")
-            logger.info(result.stdout[-500:] if result.stdout else "")
-        else:
-            logger.error(f"[Ingest] Failed:\n{result.stderr[-500:]}")
-    except Exception as e:
-        logger.error(f"[Ingest] Background ingest error: {e}")
 
 
 app = FastAPI(
@@ -103,12 +93,17 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Parse CORS_ORIGINS from config: comma-separated list or "*" for dev.
+_cors_origins = [o.strip() for o in config.CORS_ORIGINS.split(",") if o.strip()]
+if not _cors_origins:
+    _cors_origins = ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
 )
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -390,40 +385,34 @@ class HealthResponse(BaseModel):
 @app.get("/health", response_model=HealthResponse, tags=["System"])
 async def health_check():
     """
-    Health check endpoint with detailed backend status.
-    
+    Lightweight health check — safe to call from load-balancer / Render every 30 s.
+
+    Intentionally does NOT load or read the FAISS index (that would be slow and
+    could block the event loop).  It only checks whether the index *files* exist
+    on disk — a cheap stat() call.
+
     Returns:
-        - status: "healthy" if pipeline loaded, "degraded" otherwise
-        - pipeline_loaded: whether the RAG pipeline initialized successfully
-        - vector_store_ready: whether FAISS index file exists
-        - faiss_index_exists: same as vector_store_ready (for UI compatibility)
+        - status: "healthy" (API process alive) or "degraded" (index missing)
+        - pipeline_loaded: True once the first /chat request has been served
+        - vector_store_ready: True if index.faiss file exists on disk
+        - faiss_index_exists: alias for vector_store_ready (UI compatibility)
+        - index_size: always 0 here — use /stats for detailed metrics
         - model: configured OpenAI model name
         - vector_store: configured vector store type
     """
-    # Resolve to absolute path — prevents CWD-relative mismatches on Render
+    # Cheap file-existence check only — no FAISS reads, no ML imports
     index_path = Path(config.FAISS_INDEX_PATH).resolve()
     vs_ready = (index_path / "index.faiss").exists()
-    # Fallback: also check relative path in case resolve differs
+    # Fallback: also check the un-resolved relative path
     if not vs_ready:
-        index_path_rel = Path(config.FAISS_INDEX_PATH)
-        vs_ready = (index_path_rel / "index.faiss").exists()
-        if vs_ready:
-            index_path = index_path_rel
-    index_size = 0
-    if vs_ready:
-        try:
-            import faiss, pickle
-            idx = faiss.read_index(str(index_path / "index.faiss"))
-            index_size = idx.ntotal
-        except Exception:
-            index_size = 0
-    
+        vs_ready = (Path(config.FAISS_INDEX_PATH) / "index.faiss").exists()
+
     return HealthResponse(
-        status="healthy",  # API is healthy even if pipeline not loaded yet
-        pipeline_loaded=pipeline is not None,  # Will be False until first request
+        status="healthy" if vs_ready else "degraded",
+        pipeline_loaded=pipeline is not None,
         vector_store_ready=vs_ready,
         faiss_index_exists=vs_ready,
-        index_size=index_size,
+        index_size=0,           # Intentionally 0 — reading the index here is expensive
         model=config.OPENAI_MODEL,
         vector_store=config.VECTOR_STORE_TYPE,
     )
@@ -474,6 +463,20 @@ async def get_monitoring_stats():
 
 @app.post("/chat", response_model=ChatResponse, tags=["RAG"])
 async def chat(request: ChatRequest):
+    # Guard: refuse early with a clear message if the index is missing.
+    # This prevents a confusing cascade of ML import errors on free-tier hosts
+    # that received a deploy without a pre-built FAISS index.
+    _idx = Path(config.FAISS_INDEX_PATH).resolve() / "index.faiss"
+    if not _idx.exists():
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "The knowledge base index is not ready. "
+                "Build it locally with `python vectorstore/ingest.py`, "
+                "commit the vectorstore/faiss_index/ folder, and redeploy."
+            ),
+        )
+
     # Lazy-load pipeline and router on first request
     current_pipeline = get_pipeline()
     current_router = get_router()
@@ -481,9 +484,10 @@ async def chat(request: ChatRequest):
     # Rate limiting
     client_id = request.session_id or "anonymous"
     rate_limiter = get_rate_limiter()
-    allowed, reason = rate_limiter.is_allowed(client_id)
+    allowed, reason, retry_after = rate_limiter.is_allowed(client_id)
     if not allowed:
-        raise HTTPException(status_code=429, detail=reason)
+        headers = {"Retry-After": str(retry_after)} if retry_after else {}
+        raise HTTPException(status_code=429, detail=reason, headers=headers)
 
     # Check cache first
     response_cache = get_response_cache()

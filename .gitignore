@@ -22,11 +22,17 @@ env/
 dist/
 build/
 
-# Vector Store (rebuild locally)
+# Vector Store
+# The pre-built FAISS index MUST be committed so Render can deploy without
+# running embedding jobs at startup.  Build it once with:
+#   bash scripts/build_index_locally.sh
+# then: git add vectorstore/faiss_index/ && git commit && git push
+#
+# Ignore the OLD data/ path (legacy) but allow vectorstore/ to be tracked.
 data/faiss_index/
-vectorstore/faiss_index/
-*.faiss
-*.pkl
+
+# Ignore test indices (temporary, not needed in repo)
+vectorstore/faiss_index_test/
 
 # Downloaded datasets (too large for git)
 data/raw_datasets/

@@ -3,7 +3,7 @@ Simple token bucket rate limiter to prevent API abuse.
 """
 import time
 from collections import defaultdict
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Optional
 from loguru import logger
 
 
@@ -27,41 +27,46 @@ class RateLimiter:
         
         logger.info(f"RateLimiter initialized: {requests_per_minute} req/min, {requests_per_hour} req/hour")
     
-    def is_allowed(self, client_id: str) -> Tuple[bool, str]:
+    def is_allowed(self, client_id: str) -> Tuple[bool, str, Optional[int]]:
         """
         Check if client is allowed to make a request.
-        
+
         Args:
             client_id: Unique identifier (IP, session ID, etc.)
-            
+
         Returns:
-            (allowed: bool, reason: str)
+            (allowed: bool, reason: str, retry_after_seconds: int | None)
+            retry_after_seconds is set when allowed=False so the caller can
+            include a Retry-After response header.
         """
         now = time.time()
-        
+
         # Clean up old requests
         self._requests[client_id] = [
             ts for ts in self._requests[client_id]
             if now - ts < 3600  # Keep last hour
         ]
-        
+
         requests = self._requests[client_id]
-        
+
         # Check per-minute limit
         recent_minute = [ts for ts in requests if now - ts < 60]
         if len(recent_minute) >= self.rpm_limit:
-            logger.warning(f"Rate limit exceeded (RPM) for client={client_id}")
-            return False, f"Rate limit exceeded: {self.rpm_limit} requests per minute"
-        
+            # Retry after the oldest per-minute entry expires
+            retry_after = max(1, int(60 - (now - recent_minute[0])))
+            logger.warning(f"Rate limit exceeded (RPM) for client={client_id}, retry_after={retry_after}s")
+            return False, f"Rate limit exceeded: {self.rpm_limit} requests per minute", retry_after
+
         # Check per-hour limit
         recent_hour = [ts for ts in requests if now - ts < 3600]
         if len(recent_hour) >= self.rph_limit:
-            logger.warning(f"Rate limit exceeded (RPH) for client={client_id}")
-            return False, f"Rate limit exceeded: {self.rph_limit} requests per hour"
-        
+            retry_after = max(1, int(3600 - (now - recent_hour[0])))
+            logger.warning(f"Rate limit exceeded (RPH) for client={client_id}, retry_after={retry_after}s")
+            return False, f"Rate limit exceeded: {self.rph_limit} requests per hour", retry_after
+
         # Allow request
         self._requests[client_id].append(now)
-        return True, ""
+        return True, "", None
     
     def reset(self, client_id: str):
         """Reset rate limit for a specific client."""

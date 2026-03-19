@@ -2,6 +2,7 @@
 Centralized configuration management using environment variables.
 """
 import os
+import secrets
 from dotenv import load_dotenv
 from loguru import logger
 
@@ -57,6 +58,15 @@ class Config:
     # Logging
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
     APP_ENV: str = os.getenv("APP_ENV", "development")
+
+    # Security
+    # JWT secret key — defaults to a random value if not set (tokens won't survive restarts).
+    # Set a stable value via env var in production.
+    JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY") or secrets.token_urlsafe(32)
+
+    # Comma-separated allowed CORS origins.
+    # Use "*" only for local dev; always restrict in production.
+    CORS_ORIGINS: str = os.getenv("CORS_ORIGINS", "*")
 
     # Error monitoring (optional)
     SENTRY_DSN: str = os.getenv("SENTRY_DSN", "")
