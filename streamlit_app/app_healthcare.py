@@ -102,7 +102,7 @@ with col1:
     render_mode_card(
         title="Analyze a Report",
         description="Upload reports, extract findings, and explain in plain language with confidence scoring and evidence citations.",
-        icon="📄",
+        icon="",
         button_text="Start Analysis",
         button_key="mode_analyze",
         action=lambda: st.switch_page("pages/healthcare/1_Analyze_Report.py")
@@ -112,7 +112,7 @@ with col2:
     render_mode_card(
         title="Ask a Medical Question",
         description="Evidence-backed answers with structured insights, possible concerns, next steps, and source citations.",
-        icon="💬",
+        icon="",
         button_text="Ask Question",
         button_key="mode_ask",
         action=lambda: st.switch_page("pages/healthcare/2_Ask_AI.py")
@@ -122,7 +122,7 @@ with col3:
     render_mode_card(
         title="Serious Condition Follow-up",
         description="Daily tracking, trend analysis, risk escalation, and longitudinal monitoring for high-risk conditions.",
-        icon="📊",
+        icon="",
         button_text="Start Follow-up",
         button_key="mode_followup",
         action=lambda: st.switch_page("pages/healthcare/3_Followup_Monitor.py")
@@ -313,17 +313,17 @@ st.markdown("---")
 col_f1, col_f2, col_f3, col_f4 = st.columns(4, gap="large")
 
 with col_f1:
-    if st.button("📋 View Records Timeline", use_container_width=True):
+    if st.button("View Records Timeline", use_container_width=True):
         st.switch_page("pages/healthcare/4_Records_Timeline.py")
 
 with col_f2:
-    if st.button("📊 System Monitoring", use_container_width=True):
+    if st.button("System Monitoring", use_container_width=True):
         st.switch_page("pages/healthcare/5_Monitoring.py")
 
 with col_f3:
-    if st.button("⚙️ Settings", use_container_width=True):
+    if st.button("Settings", use_container_width=True):
         st.switch_page("pages/healthcare/6_Settings.py")
 
 with col_f4:
-    if st.button("📖 Help & Documentation", use_container_width=True):
+    if st.button("Help & Documentation", use_container_width=True):
         st.info("Comprehensive user guides and system documentation coming soon")

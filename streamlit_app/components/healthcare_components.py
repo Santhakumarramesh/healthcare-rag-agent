@@ -16,7 +16,6 @@ def render_app_shell():
     """Global app shell with sidebar and header."""
     st.set_page_config(
         page_title="AI Healthcare Copilot",
-        page_icon="⚕️",
         layout="wide",
         initial_sidebar_state="expanded"
     )
