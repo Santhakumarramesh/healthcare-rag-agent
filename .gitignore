@@ -65,3 +65,5 @@ ui.log
 .pytest_cache/
 htmlcov/
 .coverage
+*.db
+*.db-journal
