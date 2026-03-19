@@ -1,3 +1,13 @@
+---
+title: Healthcare RAG API
+emoji: 🏥
+colorFrom: blue
+colorTo: green
+sdk: docker
+app_port: 8000
+pinned: false
+---
+
 # Healthcare AI Platform
 
 **Production-style healthcare AI system with multi-agent routing, RAG pipeline, report analysis, and monitoring.**
