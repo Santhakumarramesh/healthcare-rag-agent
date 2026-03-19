@@ -17,7 +17,7 @@ from components.layout import load_css, render_sidebar_status
 st.set_page_config(
     page_title="Healthcare AI Platform",
     layout="wide",
-    page_icon="🏥",
+    page_icon="⚕️",
     initial_sidebar_state="expanded"
 )
 
@@ -46,12 +46,12 @@ st.sidebar.markdown('''
 st.sidebar.markdown("---")
 
 # Navigation
-st.sidebar.page_link("pages/1_Dashboard.py", label="Dashboard", icon="🏠")
-st.sidebar.page_link("pages/2_Ask_AI.py", label="Ask AI", icon="💬")
-st.sidebar.page_link("pages/3_Report_Analyzer.py", label="Report Analyzer", icon="📋")
-st.sidebar.page_link("pages/4_Records_History.py", label="Records & History", icon="📁")
-st.sidebar.page_link("pages/5_Monitoring.py", label="Monitoring", icon="📊")
-st.sidebar.page_link("pages/6_Settings.py", label="Settings", icon="⚙️")
+st.sidebar.page_link("pages/1_Dashboard.py", label="Dashboard")
+st.sidebar.page_link("pages/2_Ask_AI.py", label="Ask AI")
+st.sidebar.page_link("pages/3_Report_Analyzer.py", label="Report Analyzer")
+st.sidebar.page_link("pages/4_Records_History.py", label="Records & History")
+st.sidebar.page_link("pages/5_Monitoring.py", label="Monitoring")
+st.sidebar.page_link("pages/6_Settings.py", label="Settings")
 
 # Sidebar status
 render_sidebar_status()
@@ -59,7 +59,7 @@ render_sidebar_status()
 # Main content - redirect to dashboard
 st.markdown('''
 <div style="text-align: center; padding: 100px 0;">
-    <div style="font-size: 48px; margin-bottom: 24px;">🏥</div>
+    <div style="font-size: 48px; margin-bottom: 24px; color: #0F4C81; font-weight: 700;">⚕</div>
     <div style="font-size: 32px; font-weight: 700; color: #102A43; margin-bottom: 12px;">Healthcare AI Platform</div>
     <div style="font-size: 16px; color: #486581; margin-bottom: 32px;">Production-style medical AI system</div>
 </div>
@@ -68,15 +68,15 @@ st.markdown('''
 col1, col2, col3 = st.columns([1, 1, 1])
 
 with col1:
-    if st.button("📊 View Dashboard", use_container_width=True):
+    if st.button("View Dashboard", use_container_width=True):
         st.switch_page("pages/1_Dashboard.py")
 
 with col2:
-    if st.button("💬 Ask AI", use_container_width=True):
+    if st.button("Ask AI", use_container_width=True):
         st.switch_page("pages/2_Ask_AI.py")
 
 with col3:
-    if st.button("📋 Analyze Report", use_container_width=True):
+    if st.button("Analyze Report", use_container_width=True):
         st.switch_page("pages/3_Report_Analyzer.py")
 
 # Footer

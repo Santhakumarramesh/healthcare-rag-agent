@@ -19,7 +19,7 @@ from components.cards import metric_card
 st.set_page_config(
     page_title="Monitoring - Healthcare AI",
     layout="wide",
-    page_icon="📊",
+    page_icon="⚕️",
     initial_sidebar_state="expanded"
 )
 

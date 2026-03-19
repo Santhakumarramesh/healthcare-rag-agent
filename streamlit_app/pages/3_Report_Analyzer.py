@@ -94,7 +94,7 @@ def call_report_api(file_obj=None, raw_text: str = "") -> dict:
 
 
 # Page config
-st.set_page_config(page_title="Report Analyzer", layout="wide", page_icon="📋")
+st.set_page_config(page_title="Report Analyzer", layout="wide", page_icon="⚕️")
 
 # Load custom CSS
 load_css()

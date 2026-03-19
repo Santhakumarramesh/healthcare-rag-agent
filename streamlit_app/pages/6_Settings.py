@@ -15,7 +15,7 @@ from components.layout import load_css, page_header, render_sidebar_status
 st.set_page_config(
     page_title="Settings - Healthcare AI",
     layout="wide",
-    page_icon="⚙️",
+    page_icon="⚕️",
     initial_sidebar_state="expanded"
 )
 

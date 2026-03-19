@@ -21,6 +21,12 @@ sys.path.append(str(Path(__file__).parent.parent))
 from agents.rag_pipeline import HealthcareRAGPipeline
 from agents.router_agent import RouterAgent, QueryType
 from agents.reasoning_agent import reasoning_agent
+from agents.structured_reasoning_agent import (
+    StructuredReasoningAgent, 
+    RetrievedChunk, 
+    ReasoningResult,
+    get_structured_reasoning_agent
+)
 from api.records import router as records_router
 from api.auth import router as auth_router
 from api.admin import router as admin_router
@@ -115,7 +121,17 @@ class ChatRequest(BaseModel):
 
 
 class ChatResponse(BaseModel):
-    response: str
+    # Structured format for UI
+    answer: str  # Main answer (replaces 'response')
+    key_insights: List[str] = []
+    possible_considerations: List[str] = []
+    next_steps: List[str] = []
+    safety_note: str = "This assistant does not replace professional medical advice."
+    confidence: float  # Unified confidence score
+    sources: List[dict]
+    
+    # Legacy/additional fields
+    response: Optional[str] = None  # Deprecated, use 'answer'
     intent: str
     is_emergency: bool
     retrieval_confidence: float
@@ -123,7 +139,6 @@ class ChatResponse(BaseModel):
     hallucination_risk: str
     evaluation_notes: str
     agent_trace: List[str]
-    sources: List[dict]
     latency_ms: float
     query_type: Optional[str] = None
     routing_confidence: Optional[float] = None
@@ -247,7 +262,28 @@ async def chat(request: ChatRequest):
         # 2. HANDLE EMERGENCY
         if route_info["is_urgent"]:
             emergency_response = {
-                "response": "⚠️ **EMERGENCY DETECTED**\n\nThis appears to be an urgent medical situation. Please:\n\n1. **Call emergency services (911) immediately**, or\n2. **Go to the nearest emergency room**\n\nDo not wait for online medical advice in emergency situations.",
+                # Structured format
+                "answer": "This appears to be an urgent medical situation.",
+                "key_insights": [
+                    "Emergency symptoms detected",
+                    "Immediate medical attention required",
+                    "Do not delay seeking professional care"
+                ],
+                "possible_considerations": [
+                    "This may be a life-threatening condition",
+                    "Time-sensitive medical intervention may be needed"
+                ],
+                "next_steps": [
+                    "Call emergency services (911) immediately",
+                    "Go to the nearest emergency room",
+                    "Do not wait for online medical advice"
+                ],
+                "safety_note": "EMERGENCY: Seek immediate medical attention. This is not a substitute for emergency care.",
+                "confidence": 1.0,
+                "sources": [],
+                
+                # Legacy fields
+                "response": "EMERGENCY DETECTED - This appears to be an urgent medical situation. Call 911 immediately or go to the nearest emergency room.",
                 "intent": "emergency",
                 "is_emergency": True,
                 "retrieval_confidence": 1.0,
@@ -255,7 +291,6 @@ async def chat(request: ChatRequest):
                 "hallucination_risk": "none",
                 "evaluation_notes": "Emergency query detected",
                 "agent_trace": ["Emergency detection triggered"],
-                "sources": [],
                 "latency_ms": round((time.time() - start_time) * 1000, 2),
                 "query_type": route_info["type"],
                 "routing_confidence": route_info["confidence"]
@@ -315,30 +350,61 @@ async def chat(request: ChatRequest):
                 message=alert["message"]
             )
         
-        # 10. APPLY MULTI-STEP REASONING FOR COMPLEX QUERIES
-        reasoning_steps = []
-        use_reasoning = route_info["type"] in ["symptom_check", "preventive_care"] and len(request.query.split()) > 15
-        
-        if use_reasoning:
-            # Extract evidence text from sources
-            evidence_texts = [
-                getattr(source, 'page_content', getattr(source, 'text', ''))
-                for source in raw_sources[:5]
-            ]
+        # 10. RUN STRUCTURED REASONING AGENT
+        # Convert raw sources to RetrievedChunk format
+        retrieved_chunks = []
+        for source in raw_sources[:10]:
+            content = getattr(source, 'page_content', getattr(source, 'text', ''))
+            metadata = getattr(source, 'metadata', {})
             
-            # Run reasoning agent
-            reasoning_result = await reasoning_agent.reason(
-                request.query,
-                evidence_texts,
-                context=conversation_context
+            retrieved_chunks.append(RetrievedChunk(
+                source=metadata.get('source', 'Unknown'),
+                content=content,
+                score=metadata.get('score', 0.5),
+                category=metadata.get('category', None)
+            ))
+        
+        # Get structured reasoning agent
+        try:
+            structured_agent = get_structured_reasoning_agent(
+                api_key=config.OPENAI_API_KEY,
+                model=config.OPENAI_MODEL
             )
             
-            # Use reasoning agent's answer
-            result["response"] = reasoning_result["answer"]
-            reasoning_steps = reasoning_result["reasoning_steps"]
+            # Run structured reasoning
+            reasoning_result = structured_agent.run(
+                query=request.query,
+                route=route_info["type"],
+                retrieved_chunks=retrieved_chunks
+            )
             
-            # Update confidence with reasoning confidence
-            enhanced_confidence = (enhanced_confidence + reasoning_result["confidence"]) / 2
+            # Extract structured fields
+            answer = reasoning_result.answer
+            key_insights = reasoning_result.key_insights
+            possible_considerations = reasoning_result.possible_considerations
+            next_steps = reasoning_result.next_steps
+            safety_note = reasoning_result.safety_note
+            structured_confidence = reasoning_result.confidence
+            
+            # Use structured confidence if higher
+            enhanced_confidence = max(enhanced_confidence, structured_confidence)
+            
+            # Legacy reasoning steps for backward compatibility
+            reasoning_steps = [
+                {"step": "Evidence Analysis", "result": f"Analyzed {len(retrieved_chunks)} sources"},
+                {"step": "Insight Generation", "result": f"Generated {len(key_insights)} key insights"},
+                {"step": "Safety Check", "result": safety_note}
+            ]
+            
+        except Exception as e:
+            logger.error(f"Structured reasoning failed: {e} - falling back to basic response")
+            # Fallback to basic response
+            answer = result.get("response", "")
+            key_insights = []
+            possible_considerations = []
+            next_steps = ["Consult a healthcare professional for personalized advice"]
+            safety_note = "This assistant does not replace professional medical advice."
+            reasoning_steps = []
 
         # 11. UPDATE METRICS
         REQUEST_COUNT.labels(intent=route_info["type"]).inc()
@@ -373,15 +439,24 @@ async def chat(request: ChatRequest):
         )
 
         response_data = {
-            "response": result["response"],
+            # Structured format (primary)
+            "answer": answer,
+            "key_insights": key_insights,
+            "possible_considerations": possible_considerations,
+            "next_steps": next_steps,
+            "safety_note": safety_note,
+            "confidence": round(enhanced_confidence, 3),
+            "sources": formatted_citations,
+            
+            # Legacy fields (for backward compatibility)
+            "response": answer,  # Duplicate for old clients
             "intent": route_info["type"],
             "is_emergency": False,
             "retrieval_confidence": round(enhanced_confidence, 3),
             "quality_score": round(quality_score, 3),
             "hallucination_risk": result.get("hallucination_risk", "low"),
             "evaluation_notes": result.get("evaluation_notes", ""),
-            "agent_trace": result.get("agent_trace", []) + [f"Routed as: {route_info['type']}"] + ([f"Multi-step reasoning applied ({len(reasoning_steps)} steps)"] if reasoning_steps else []) + ([f"{len(clinical_alerts)} clinical alert(s) detected"] if clinical_alerts else []),
-            "sources": formatted_citations,
+            "agent_trace": result.get("agent_trace", []) + [f"Routed as: {route_info['type']}"] + ([f"Structured reasoning applied"] if key_insights else []) + ([f"{len(clinical_alerts)} clinical alert(s) detected"] if clinical_alerts else []),
             "latency_ms": round(latency_ms, 2),
             "query_type": route_info["type"],
             "routing_confidence": route_info["confidence"],
@@ -393,7 +468,7 @@ async def chat(request: ChatRequest):
         # 11. STORE IN MEMORY
         memory_service.add_interaction(client_id, {
             "query": request.query,
-            "answer": result["response"],
+            "answer": answer,
             "query_type": route_info["type"],
             "confidence": enhanced_confidence,
             "sources": formatted_citations

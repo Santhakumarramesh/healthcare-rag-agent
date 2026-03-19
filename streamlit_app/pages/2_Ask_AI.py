@@ -17,7 +17,7 @@ from components.badges import confidence_badge, status_badge
 st.set_page_config(
     page_title="Ask AI - Healthcare AI",
     layout="wide",
-    page_icon="💬",
+    page_icon="⚕️",
     initial_sidebar_state="expanded"
 )
 

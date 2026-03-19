@@ -16,7 +16,7 @@ from components.layout import load_css, page_header, render_sidebar_status
 st.set_page_config(
     page_title="Records & History",
     layout="wide",
-    page_icon="📁",
+    page_icon="⚕️",
     initial_sidebar_state="expanded"
 )
 

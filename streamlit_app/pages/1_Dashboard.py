@@ -17,7 +17,7 @@ from components.cards import metric_card, quick_action_card
 st.set_page_config(
     page_title="Dashboard - Healthcare AI",
     layout="wide",
-    page_icon="🏥",
+    page_icon="⚕️",
     initial_sidebar_state="expanded"
 )
 
@@ -36,10 +36,10 @@ page_header(
 # Hero buttons
 col1, col2, col3, col4 = st.columns([1, 1, 1, 2])
 with col1:
-    if st.button("📋 Analyze Report", use_container_width=True):
+    if st.button("Analyze Report", use_container_width=True):
         st.switch_page("pages/3_Report_Analyzer.py")
 with col2:
-    if st.button("💬 Ask AI", use_container_width=True):
+    if st.button("Ask AI", use_container_width=True):
         st.switch_page("pages/2_Ask_AI.py")
 
 st.markdown("<br>", unsafe_allow_html=True)
@@ -49,27 +49,27 @@ st.markdown("### Quick Actions")
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
-    if st.button("💊", key="drug", use_container_width=True):
+    quick_action_card("Drug Information", "Search medications and interactions", "drug")
+    if st.button("Learn More", key="drug_btn", use_container_width=True):
         st.session_state["preset_query"] = "Tell me about common drug interactions"
         st.switch_page("pages/2_Ask_AI.py")
-    st.markdown('<div style="text-align: center; margin-top: 8px;"><div style="font-weight: 600; font-size: 14px; color: #102A43;">Drug Information</div><div style="font-size: 12px; color: #486581;">Search medications</div></div>', unsafe_allow_html=True)
 
 with col2:
-    if st.button("🩺", key="symptom", use_container_width=True):
+    quick_action_card("Symptom Guidance", "Check symptoms and get guidance", "symptom")
+    if st.button("Learn More", key="symptom_btn", use_container_width=True):
         st.session_state["preset_query"] = "What could cause persistent headaches?"
         st.switch_page("pages/2_Ask_AI.py")
-    st.markdown('<div style="text-align: center; margin-top: 8px;"><div style="font-weight: 600; font-size: 14px; color: #102A43;">Symptom Guidance</div><div style="font-size: 12px; color: #486581;">Check symptoms</div></div>', unsafe_allow_html=True)
 
 with col3:
-    if st.button("📊", key="lab", use_container_width=True):
+    quick_action_card("Lab Analysis", "Upload and analyze lab reports", "lab")
+    if st.button("Analyze Now", key="lab_btn", use_container_width=True):
         st.switch_page("pages/3_Report_Analyzer.py")
-    st.markdown('<div style="text-align: center; margin-top: 8px;"><div style="font-weight: 600; font-size: 14px; color: #102A43;">Lab Analysis</div><div style="font-size: 12px; color: #486581;">Upload reports</div></div>', unsafe_allow_html=True)
 
 with col4:
-    if st.button("🔬", key="research", use_container_width=True):
+    quick_action_card("Research Summary", "Get medical research insights", "research")
+    if st.button("Learn More", key="research_btn", use_container_width=True):
         st.session_state["preset_query"] = "Summarize the latest research on diabetes management"
         st.switch_page("pages/2_Ask_AI.py")
-    st.markdown('<div style="text-align: center; margin-top: 8px;"><div style="font-weight: 600; font-size: 14px; color: #102A43;">Research Summary</div><div style="font-size: 12px; color: #486581;">Medical research</div></div>', unsafe_allow_html=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
 

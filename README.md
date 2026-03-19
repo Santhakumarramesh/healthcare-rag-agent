@@ -7,7 +7,32 @@
 [![LangChain](https://img.shields.io/badge/LangChain-0.3-orange)](https://langchain.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**Live Demo**: [healthcare-rag-api.onrender.com](https://healthcare-rag-api.onrender.com) | **API Docs**: [/docs](https://healthcare-rag-api.onrender.com/docs)
+**Live Demo**: 
+- **UI**: [healthcare-rag-ui.onrender.com](https://healthcare-rag-ui.onrender.com)
+- **API**: [healthcare-rag-api.onrender.com](https://healthcare-rag-api.onrender.com)
+- **API Docs**: [/docs](https://healthcare-rag-api.onrender.com/docs)
+
+---
+
+## 📸 Screenshots
+
+### Dashboard
+![Dashboard](docs/screenshots/dashboard.png)
+*Main dashboard with quick actions and system overview*
+
+### Ask AI - Structured Q&A
+![Ask AI](docs/screenshots/ask-ai.png)
+*Evidence-based answers with key insights, concerns, and next steps*
+
+### Report Analyzer
+![Report Analyzer](docs/screenshots/report-analyzer.png)
+*Upload lab reports for structured extraction and AI-powered analysis*
+
+### Monitoring Dashboard
+![Monitoring](docs/screenshots/monitoring.png)
+*Real-time system metrics and performance analytics*
+
+> **Note**: Visit the [live demo](https://healthcare-rag-ui.onrender.com) to explore all features
 
 ---
 
@@ -92,23 +117,29 @@ uvicorn api.main:app --host 0.0.0.0 --port 8000
 
 ## 🏗️ Architecture
 
+### System Overview
+
+![Architecture Diagram](docs/screenshots/architecture.png)
+
 **5-Stage Pipeline:**
 
 ```
-1. Router → Classify query intent and route appropriately
-2. Retriever → Hybrid search (vector + keyword) with FAISS
-3. Web/Search → Optional fallback for recent information
-4. Reasoning/Response → Generate grounded answer with citations
-5. Evaluation → Validate quality, confidence, and safety
+1. Router → Classify query intent (7 types: symptom, drug, emergency, etc.)
+2. Retriever → Hybrid search (FAISS vector + BM25 keyword matching)
+3. Web/Search → Optional fallback for current information
+4. Reasoning → Structured multi-step analysis with evidence grounding
+5. Evaluation → Quality validation, confidence scoring, safety checks
 ```
 
-**Additional Layers:**
-- Authentication & Authorization
-- Knowledge Graph Enhancement
-- Clinical Alert Engine
-- Session Memory
-- Audit Logging
-- Real-time Monitoring
+**Production Layers:**
+- **Authentication** - JWT tokens with role-based access control
+- **Knowledge Graph** - Disease-symptom-drug relationship mapping
+- **Clinical Alerts** - Emergency detection for 14 critical symptoms
+- **Session Memory** - Database-backed conversation history
+- **Audit Logging** - HIPAA-compliant activity tracking
+- **Monitoring** - Real-time metrics and performance analytics
+
+**Tech Stack**: FastAPI + LangChain + LangGraph + OpenAI + FAISS + SQLAlchemy + Streamlit
 
 **See**: [ARCHITECTURE.md](ARCHITECTURE.md) for detailed system design
 
