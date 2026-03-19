@@ -31,14 +31,14 @@ services:
       - key: APP_ENV
         value: "production"
 
-  # ── Streamlit UI ─────────────────────────────────────────────────────────────
+  # ── Streamlit UI (AI Healthcare Copilot) ─────────────────────────────────────
   - type: web
     name: healthcare-rag-ui
     env: python
     region: oregon
     plan: free
     buildCommand: "pip install -r requirements-ui.txt"
-    startCommand: "bash start_ui.sh"
+    startCommand: "bash start_healthcare.sh"
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.10"
