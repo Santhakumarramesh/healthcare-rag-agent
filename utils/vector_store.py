@@ -25,8 +25,8 @@ load_dotenv()
 
 # ── Config ────────────────────────────────────────────────────────────────────
 from utils.config import config as settings
-VECTOR_STORE_MODE = settings.vector_store_mode
-FAISS_INDEX_PATH  = settings.faiss_index_path
+VECTOR_STORE_MODE = settings.VECTOR_STORE_TYPE
+FAISS_INDEX_PATH  = settings.FAISS_INDEX_PATH
 CHUNK_SIZE        = 512
 CHUNK_OVERLAP     = 64
 TOP_K_RETRIEVE    = 8

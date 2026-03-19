@@ -1,1 +1,1 @@
-web: bash start_ui.sh
+web: bash start_healthcare.sh

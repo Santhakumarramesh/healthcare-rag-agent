@@ -98,9 +98,11 @@ def run_ragas_eval(sample_size: int = None) -> dict:
 
 def _evaluate_single(question: str, ground_truth: str) -> dict:
     """Run the pipeline on one question and score it against ground truth."""
-    from agents.graph import run_agent
+    from agents.rag_pipeline import HealthcareRAGPipeline
+    import asyncio
 
-    result = run_agent(query=question)
+    pipeline = HealthcareRAGPipeline()
+    result = asyncio.run(pipeline.run(question))
 
     # Simple lexical faithfulness (in production, use RAGAS proper)
     faithfulness = _score_faithfulness(

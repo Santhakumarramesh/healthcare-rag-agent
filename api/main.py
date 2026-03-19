@@ -807,8 +807,8 @@ async def ingest_file(file: UploadFile = File(...)):
 async def get_stats():
     """Get system statistics including cache and rate limiter stats."""
     return {
-        "cache": response_cache.stats(),
-        "rate_limiter": rate_limiter.stats(),
+        "cache": get_response_cache().stats(),
+        "rate_limiter": get_rate_limiter().stats(),
         "pipeline_loaded": pipeline is not None,
     }
 

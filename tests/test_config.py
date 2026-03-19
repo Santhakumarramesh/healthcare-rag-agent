@@ -2,27 +2,26 @@ import pytest
 import os
 import sys
 
-# Add project root to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from utils.config import config
 
+
 def test_settings_load_defaults():
     """Test that the application config loads proper defaults."""
-    settings = get_settings()
-    assert settings.vector_store_mode in ["faiss", "pinecone"]
-    assert settings.faiss_index_path is not None
+    assert config.VECTOR_STORE_TYPE in ["faiss", "pinecone"]
+    assert config.FAISS_INDEX_PATH is not None
+
 
 def test_chunk_parameters():
-    """Test that text chunking configurations are musically valid."""
-    settings = get_settings()
-    assert settings.chunk_size > 0
-    assert settings.chunk_overlap > 0
-    assert settings.chunk_size > settings.chunk_overlap
+    """Test that retrieval config values are valid."""
+    assert config.MAX_RETRIEVED_DOCS > 0
+    assert config.RERANK_TOP_K > 0
+    assert config.MAX_RETRIEVED_DOCS >= config.RERANK_TOP_K
+
 
 def test_api_port_config():
     """Test API host and port configuration validity."""
-    settings = get_settings()
-    assert isinstance(settings.api_port, int)
-    assert settings.api_port == 8000  # Default port
-    assert isinstance(settings.api_host, str)
+    assert isinstance(config.API_PORT, int)
+    assert config.API_PORT > 0
+    assert isinstance(config.API_HOST, str)

@@ -54,7 +54,7 @@ if "settings" not in st.session_state:
 # ============================================================================
 
 st.markdown("""
-<div style="font-size": 1.5rem; font-weight: 700; color: var(--text-primary); margin-bottom: 1rem;">
+<div style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary); margin-bottom: 1rem;">
     Model Settings
 </div>
 """, unsafe_allow_html=True)
