@@ -3,16 +3,26 @@ Report Analysis API Routes.
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, UploadFile, File, HTTPException
-from api.schemas.report import ReportTextRequest, ReportAnalysisResponse
+from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks
+from api.schemas.report import (
+    ReportTextRequest,
+    ReportAnalysisResponse,
+    ReportAnalysisJobStartResponse,
+    ReportAnalysisJobResponse,
+)
 from services.report_service import ReportService
 from models.report_llm import ReportLLM
 from loguru import logger
 
 import os
 import io
+from uuid import uuid4
+from threading import Lock
 
 router = APIRouter(prefix="/reports", tags=["Reports"])
+
+_JOB_LOCK = Lock()
+_JOBS: dict[str, dict] = {}
 
 
 def extract_text_from_upload(upload: UploadFile) -> str:
@@ -113,3 +123,55 @@ async def analyze_text_report(payload: ReportTextRequest):
     except Exception as e:
         logger.error(f"[ReportsAPI] Analysis failed: {e}")
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+
+
+def _set_job(job_id: str, *, status: str, result: dict | None = None, error: str | None = None) -> None:
+    with _JOB_LOCK:
+        job = _JOBS.get(job_id)
+        if not job:
+            return
+        job["status"] = status
+        job["result"] = result
+        job["error"] = error
+
+
+def _run_analyze_text_job(job_id: str, text: str) -> None:
+    """Run report analysis in the background (in-process job registry)."""
+    _set_job(job_id, status="processing")
+    try:
+        service = get_report_service()
+        result = service.analyze(text)
+        _set_job(job_id, status="completed", result=result)
+        logger.success(f"[ReportsAPI] Async job completed: {job_id}")
+    except Exception as e:
+        logger.error(f"[ReportsAPI] Async job failed: {job_id} ({e})")
+        _set_job(job_id, status="failed", error=str(e))
+
+
+@router.post("/analyze-text-async", response_model=ReportAnalysisJobStartResponse)
+async def analyze_text_report_async(payload: ReportTextRequest, background_tasks: BackgroundTasks):
+    """
+    Async variant of `/reports/analyze-text`.
+    Returns immediately with a `job_id`; clients can poll `GET /reports/jobs/{job_id}`.
+    """
+    job_id = str(uuid4())
+    with _JOB_LOCK:
+        _JOBS[job_id] = {"status": "pending", "result": None, "error": None}
+
+    background_tasks.add_task(_run_analyze_text_job, job_id, payload.text)
+    return ReportAnalysisJobStartResponse(job_id=job_id)
+
+
+@router.get("/jobs/{job_id}", response_model=ReportAnalysisJobResponse)
+async def get_analysis_job(job_id: str):
+    with _JOB_LOCK:
+        job = _JOBS.get(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+
+        return ReportAnalysisJobResponse(
+            job_id=job_id,
+            status=job["status"],
+            result=job.get("result"),
+            error=job.get("error"),
+        )

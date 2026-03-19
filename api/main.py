@@ -7,15 +7,18 @@ from pathlib import Path
 from contextlib import asynccontextmanager
 from typing import Optional, List
 from datetime import datetime
+import uuid
 
 import json
 import asyncio
-from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File, Form, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from loguru import logger
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import Response, StreamingResponse, JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 
 sys.path.append(str(Path(__file__).parent.parent))
 
@@ -107,6 +110,108 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """
+    Lightweight security headers.
+    Keep permissive CORS (above) because this is an API; headers protect clients from common browser attacks.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("X-XSS-Protection", "1; mode=block")
+        response.headers.setdefault(
+            "Content-Security-Policy",
+            "default-src 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self' https:; frame-ancestors 'none';",
+        )
+        response.headers.setdefault("Referrer-Policy", "no-referrer")
+        response.headers.setdefault("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+        # Render uses HTTPS in production; this is safe locally as well.
+        response.headers.setdefault("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload")
+        return response
+
+
+class RequestIDMiddleware(BaseHTTPMiddleware):
+    """Attach a stable request id to logs and responses."""
+
+    async def dispatch(self, request: Request, call_next):
+        request_id = request.headers.get("x-request-id") or str(uuid.uuid4())
+        request.state.request_id = request_id
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        return response
+
+
+# Optional error monitoring (Sentry) + request correlation.
+_SENTRY_ASGI_MIDDLEWARE = None
+try:
+    if config.SENTRY_DSN:
+        import sentry_sdk
+        from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
+
+        sentry_sdk.init(
+            dsn=config.SENTRY_DSN,
+            traces_sample_rate=config.SENTRY_TRACES_SAMPLE_RATE,
+            environment=config.APP_ENV,
+        )
+        _SENTRY_ASGI_MIDDLEWARE = SentryAsgiMiddleware
+except Exception as e:
+    logger.warning(f"Sentry init skipped: {e}")
+
+
+app.add_middleware(RequestIDMiddleware)
+if _SENTRY_ASGI_MIDDLEWARE is not None:
+    app.add_middleware(_SENTRY_ASGI_MIDDLEWARE)
+app.add_middleware(SecurityHeadersMiddleware)
+
+
+@app.exception_handler(RequestValidationError)
+async def request_validation_exception_handler(request: Request, exc: RequestValidationError):
+    request_id = getattr(request.state, "request_id", None)
+    return JSONResponse(
+        status_code=422,
+        content={
+            "error": {
+                "type": "validation_error",
+                "message": str(exc),
+            },
+            "request_id": request_id,
+        },
+    )
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    request_id = getattr(request.state, "request_id", None)
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": {
+                "type": "http_error",
+                "message": exc.detail,
+            },
+            "request_id": request_id,
+        },
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    request_id = getattr(request.state, "request_id", None)
+    # Ensure unhandled errors still get logged with correlation id.
+    logger.exception(f"Unhandled error (request_id={request_id}): {exc}")
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": {
+                "type": "internal_server_error",
+                "message": "An unexpected error occurred.",
+            },
+            "request_id": request_id,
+        },
+    )
 
 # Routers loaded in background - see lifespan
 _routers_loaded = False

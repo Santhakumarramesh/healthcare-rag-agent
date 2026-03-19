@@ -4,7 +4,7 @@ Report API schemas.
 from __future__ import annotations
 
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, Literal
 
 
 class ReportTextRequest(BaseModel):
@@ -40,3 +40,18 @@ class ReportAnalysisResponse(BaseModel):
     sources: List[SourceItem]
     safety_note: str
     report_type: Optional[str] = "Medical Report"
+
+
+class ReportAnalysisJobStartResponse(BaseModel):
+    """Response returned immediately for async report analysis jobs."""
+
+    job_id: str
+
+
+class ReportAnalysisJobResponse(BaseModel):
+    """Job status/result response for async report analysis."""
+
+    job_id: str
+    status: Literal["pending", "processing", "completed", "failed"]
+    result: Optional[ReportAnalysisResponse] = None
+    error: Optional[str] = None

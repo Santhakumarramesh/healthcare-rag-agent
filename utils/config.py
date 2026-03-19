@@ -58,6 +58,11 @@ class Config:
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
     APP_ENV: str = os.getenv("APP_ENV", "development")
 
+    # Error monitoring (optional)
+    SENTRY_DSN: str = os.getenv("SENTRY_DSN", "")
+    # 0.0 disables tracing; set to 0.1 or similar if you want performance traces.
+    SENTRY_TRACES_SAMPLE_RATE: float = float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.0"))
+
     @classmethod
     def validate(cls):
         # Check if keys are non-empty AND not placeholders
