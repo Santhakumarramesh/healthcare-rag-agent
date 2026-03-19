@@ -32,6 +32,10 @@ vectorstore/faiss_index/
 data/raw_datasets/
 data/processed/
 
+# Database (contains user data)
+data/*.db
+*.db
+
 # MLflow
 mlflow.db
 mlruns/

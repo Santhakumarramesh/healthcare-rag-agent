@@ -5,7 +5,7 @@ import sys
 # Add project root to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from config import get_settings
+from utils.config import config
 
 def test_settings_load_defaults():
     """Test that the application config loads proper defaults."""

@@ -24,9 +24,7 @@ from langchain.schema import Document
 load_dotenv()
 
 # ── Config ────────────────────────────────────────────────────────────────────
-from config import get_settings
-
-settings = get_settings()
+from utils.config import config as settings
 VECTOR_STORE_MODE = settings.vector_store_mode
 FAISS_INDEX_PATH  = settings.faiss_index_path
 CHUNK_SIZE        = 512
