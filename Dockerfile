@@ -38,8 +38,11 @@ RUN apt-get update \
 COPY --chown=appuser:appgroup . .
 
 # Create writable runtime directories
-RUN mkdir -p vectorstore/faiss_index logs \
-    && chown -R appuser:appgroup vectorstore logs
+# data/ — SQLite databases (memory, feedback)
+# logs/ — application logs
+# vectorstore/faiss_index — FAISS index (must be pre-built and committed)
+RUN mkdir -p vectorstore/faiss_index logs data \
+    && chown -R appuser:appgroup vectorstore logs data
 
 # Drop to non-root
 USER appuser

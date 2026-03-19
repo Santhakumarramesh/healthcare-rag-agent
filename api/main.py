@@ -281,6 +281,7 @@ _alert_engine = None
 _audit_service = None
 _response_cache = None
 _rate_limiter = None
+_feedback_service = None
 
 
 def get_memory_service():
@@ -337,6 +338,14 @@ def get_rate_limiter():
         from utils.rate_limiter import rate_limiter
         _rate_limiter = rate_limiter
     return _rate_limiter
+
+
+def get_feedback_service():
+    global _feedback_service
+    if _feedback_service is None:
+        from services.feedback_service import feedback_service
+        _feedback_service = feedback_service
+    return _feedback_service
 
 
 class ChatRequest(BaseModel):
@@ -1019,6 +1028,80 @@ async def toggle_local_mode(enable: bool):
         "active_model": config.LOCAL_MODEL_ID if enable else config.OPENAI_MODEL,
         "message": f"Now using: {mode}"
     }
+
+
+# ── User Feedback Endpoint ────────────────────────────────────────────────────
+
+class FeedbackRequest(BaseModel):
+    interaction_id: str = Field(..., description="Unique ID for the interaction being rated")
+    session_id: Optional[str] = None
+    query: str = Field(..., min_length=1, max_length=2000)
+    response: str = Field("", description="The AI response being rated")
+    rating: str = Field(..., pattern="^(positive|negative)$",
+                        description="'positive' (👍) or 'negative' (👎)")
+    quality_score: Optional[int] = Field(None, ge=1, le=5,
+                                          description="Optional 1–5 quality rating")
+    comment: Optional[str] = Field(None, max_length=1000)
+    correction: Optional[str] = Field(None, max_length=2000,
+                                       description="User's corrected answer (optional)")
+
+
+class FeedbackResponse(BaseModel):
+    status: str
+    message: str
+    interaction_id: str
+
+
+@app.post("/feedback", response_model=FeedbackResponse, tags=["Feedback"])
+async def submit_feedback(req: FeedbackRequest):
+    """
+    Record user feedback (👍 / 👎) on an AI response.
+
+    Feedback is persisted to SQLite and used for:
+    - Quality monitoring & dashboards
+    - Identifying low-quality responses
+    - Exporting training data for fine-tuning
+
+    Body example:
+    ```json
+    {
+      "interaction_id": "abc-123",
+      "session_id": "user-session-xyz",
+      "query": "What are symptoms of diabetes?",
+      "response": "Common symptoms include ...",
+      "rating": "positive",
+      "quality_score": 5,
+      "comment": "Very clear and helpful"
+    }
+    ```
+    """
+    try:
+        svc = get_feedback_service()
+        svc.add_feedback(
+            interaction_id=req.interaction_id,
+            user_id=req.session_id,
+            query=req.query,
+            response=req.response,
+            rating=req.rating,
+            quality_score=req.quality_score,
+            comment=req.comment,
+            correction=req.correction,
+        )
+        return FeedbackResponse(
+            status="ok",
+            message=f"Feedback recorded — thank you for helping us improve!",
+            interaction_id=req.interaction_id,
+        )
+    except Exception as exc:
+        logger.error(f"Feedback submission error: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to record feedback")
+
+
+@app.get("/feedback/stats", tags=["Feedback"])
+async def get_feedback_stats():
+    """Aggregate feedback statistics — positive rate, average quality, total count."""
+    svc = get_feedback_service()
+    return svc.get_feedback_stats()
 
 
 if __name__ == "__main__":

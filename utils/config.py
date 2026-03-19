@@ -17,8 +17,10 @@ class Config:
     NVIDIA_RERANK_MODEL: str = os.getenv("NVIDIA_RERANK_MODEL", "nvidia/llama-nemotron-rerank-1b-v2")
 
     # Embeddings
+    # Default: S-BioBERT — medical-domain sentence embeddings (PubMed + SNLI trained)
+    # Fallback set via env var to any sentence-transformers model or OpenAI
     EMBEDDING_MODEL: str = os.getenv(
-        "EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2"
+        "EMBEDDING_MODEL", "pritamdeka/S-BioBert-snli-multinli-stsb"
     )
 
     # Vector Store

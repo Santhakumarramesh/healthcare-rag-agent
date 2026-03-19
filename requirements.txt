@@ -53,6 +53,15 @@ sqlalchemy==2.0.36
 # Data Visualization
 plotly==5.24.1
 
+# Medical-domain embeddings + NER (lazy-imported — ~1 GB download on first use)
+# BioBERT embeddings: pritamdeka/S-BioBert-snli-multinli-stsb
+# Medical NER:        blaze999/Medical-NER
+sentence-transformers>=2.7.0
+transformers>=4.40.0
+
+# PDF export (Ask AI page download button)
+fpdf2>=2.7.0
+
 # Multi-Agent External Tools (optional — lazy-imported, not required on Render)
 # tavily-python==0.7.23
 # langchain-nvidia-ai-endpoints==1.2.1
