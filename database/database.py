@@ -48,10 +48,11 @@ def init_db():
         
         logger.success(f"[Database] Database initialized at {DATABASE_URL}")
         
-        # Verify connection
+        # Verify connection (SQLAlchemy 2.0 requires text() for raw SQL)
         db = SessionLocal()
         try:
-            db.execute("SELECT 1")
+            from sqlalchemy import text
+            db.execute(text("SELECT 1"))
             logger.success("[Database] Connection verified")
         finally:
             db.close()

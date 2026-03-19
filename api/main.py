@@ -10,6 +10,7 @@ from datetime import datetime
 
 import json
 import asyncio
+import threading
 from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -18,30 +19,10 @@ from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_
 from fastapi.responses import Response, StreamingResponse
 
 sys.path.append(str(Path(__file__).parent.parent))
-from agents.rag_pipeline import HealthcareRAGPipeline
-from agents.router_agent import RouterAgent, QueryType
-from agents.reasoning_agent import reasoning_agent
-from agents.structured_reasoning_agent import (
-    StructuredReasoningAgent, 
-    RetrievedChunk, 
-    ReasoningResult,
-    get_structured_reasoning_agent
-)
-from api.records import router as records_router
-from api.auth import router as auth_router
-from api.admin import router as admin_router
-from api.routes.reports import router as reports_router
-# Lazy load services to avoid blocking startup
-# from services.memory_service import memory_service
-# from services.citation_service import citation_service
-# from services.monitoring_service import monitoring_service
-# from services.alert_service import alert_engine
-# from services.audit_service import audit_service
-from database.database import init_db
+
+# Minimal imports - config is lightweight (env vars only)
 from utils.config import config
-# from utils.cache import response_cache
-# from utils.rate_limiter import rate_limiter
-from utils.hallucination_detector import detect_hallucination
+from database.database import init_db
 
 REQUEST_COUNT = Counter("rag_requests_total", "Total RAG requests", ["intent"])
 REQUEST_LATENCY = Histogram("rag_request_latency_seconds", "Request latency")
@@ -49,8 +30,22 @@ EMERGENCY_COUNT = Counter("rag_emergency_queries_total", "Emergency queries dete
 QUALITY_SCORE_HIST = Histogram("rag_quality_score", "Response quality scores",
                                 buckets=[0.1, 0.3, 0.5, 0.7, 0.8, 0.9, 1.0])
 
-pipeline: Optional[HealthcareRAGPipeline] = None
-router_agent: Optional[RouterAgent] = None
+pipeline = None
+router_agent = None
+
+
+_db_initialized = False
+
+
+def _ensure_db():
+    """Lazy init DB - only when first needed."""
+    global _db_initialized
+    if not _db_initialized:
+        try:
+            init_db()
+            _db_initialized = True
+        except Exception as e:
+            logger.error(f"Database init failed: {e}")
 
 
 @asynccontextmanager
@@ -58,18 +53,14 @@ async def lifespan(app: FastAPI):
     global pipeline, router_agent
     logger.info("Starting Healthcare RAG API...")
 
-    # Initialize database
-    logger.info("Initializing database...")
-    try:
-        init_db()
-    except Exception as e:
-        logger.error(f"Database initialization failed: {e} — continuing without database")
-
-    # CRITICAL: Do NOT load pipeline on startup - causes Render timeout
-    # Pipeline will be lazy-loaded on first request
-    logger.info("API startup complete - pipeline will load on first request")
+    # NO blocking init - start immediately
     pipeline = None
     router_agent = None
+    logger.info("API startup complete - ready to serve")
+
+    # Load routers in background (don't block)
+    t = threading.Thread(target=_load_routers, daemon=True)
+    t.start()
     
     yield
     logger.info("Shutting down...")
@@ -90,22 +81,41 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(records_router)
-app.include_router(auth_router)
-app.include_router(admin_router)
-app.include_router(reports_router)
+# Routers loaded in background - see lifespan
+_routers_loaded = False
+
+
+def _load_routers():
+    global _routers_loaded
+    if _routers_loaded:
+        return
+    try:
+        _ensure_db()
+        from api.records import router as records_router
+        from api.auth import router as auth_router
+        from api.admin import router as admin_router
+        from api.routes.reports import router as reports_router
+        app.include_router(records_router)
+        app.include_router(auth_router)
+        app.include_router(admin_router)
+        app.include_router(reports_router)
+        _routers_loaded = True
+        logger.info("Routers loaded")
+    except Exception as e:
+        logger.error(f"Router load failed: {e}")
 
 
 # ============================================================================
 # LAZY LOADING FUNCTIONS (prevents Render timeout)
 # ============================================================================
 
-def get_pipeline() -> HealthcareRAGPipeline:
+def get_pipeline():
     """Lazy-load pipeline on first request to avoid startup timeout."""
     global pipeline
     if pipeline is None:
         logger.info("Lazy-loading HealthcareRAGPipeline...")
         try:
+            from agents.rag_pipeline import HealthcareRAGPipeline
             pipeline = HealthcareRAGPipeline()
             logger.success("Pipeline loaded successfully!")
         except Exception as e:
@@ -114,12 +124,13 @@ def get_pipeline() -> HealthcareRAGPipeline:
     return pipeline
 
 
-def get_router() -> RouterAgent:
+def get_router():
     """Lazy-load router agent on first request."""
     global router_agent
     if router_agent is None:
         logger.info("Lazy-loading RouterAgent...")
         try:
+            from agents.router_agent import RouterAgent
             router_agent = RouterAgent()
             logger.success("Router loaded successfully!")
         except Exception as e:
@@ -405,6 +416,7 @@ async def chat(request: ChatRequest):
         # 7. RUN HALLUCINATION DETECTION
         hallucination_score = 0.0
         if result.get("context") and config.OPENAI_API_KEY:
+            from utils.hallucination_detector import detect_hallucination
             hall_result = await detect_hallucination(
                 context=result.get("context", ""),
                 response=result.get("response", ""),
@@ -441,6 +453,7 @@ async def chat(request: ChatRequest):
         
         # 10. RUN STRUCTURED REASONING AGENT
         # Convert raw sources to RetrievedChunk format
+        from agents.structured_reasoning_agent import RetrievedChunk, get_structured_reasoning_agent
         retrieved_chunks = []
         for source in raw_sources[:10]:
             content = getattr(source, 'page_content', getattr(source, 'text', ''))
