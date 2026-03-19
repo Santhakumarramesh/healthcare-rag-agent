@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 
 import faiss
 import numpy as np
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from loguru import logger
 

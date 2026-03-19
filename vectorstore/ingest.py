@@ -12,7 +12,7 @@ from typing import Optional
 
 import faiss
 import numpy as np
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from loguru import logger
 
 sys.path.append(str(Path(__file__).parent.parent))

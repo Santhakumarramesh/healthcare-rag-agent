@@ -8,6 +8,7 @@
 langchain==0.3.25
 langchain-openai==0.3.16
 langchain-community==0.3.24
+langchain-text-splitters==0.3.8
 langgraph==0.4.1
 openai==1.78.0
 
