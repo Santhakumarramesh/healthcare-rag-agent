@@ -1,6 +1,13 @@
-# Environment
+# Environment - NEVER commit these files!
 .env
-*.env.local
+.env.local
+.env.*.local
+*.env
+*.key
+*.secret
+*_secret.py
+secrets.py
+credentials.json
 
 # Python
 __pycache__/

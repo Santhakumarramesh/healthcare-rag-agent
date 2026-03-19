@@ -8,7 +8,11 @@ services:
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-text-embedding-3-small}
+      - FAISS_INDEX_PATH=./vectorstore/faiss_index
+      - VECTOR_STORE_TYPE=faiss
       - APP_ENV=production
+      - LOG_LEVEL=INFO
     volumes:
       - ./vectorstore/faiss_index:/app/vectorstore/faiss_index
       - ./logs:/app/logs
@@ -29,4 +33,8 @@ services:
         condition: service_healthy
     environment:
       - API_BASE_URL=http://api:8000
-    command: streamlit run ui/app.py --server.port 8501 --server.address 0.0.0.0
+    command: >
+      streamlit run streamlit_app/app.py
+      --server.port 8501
+      --server.address 0.0.0.0
+      --server.headless true

@@ -1,313 +1,239 @@
-# 🏥 Healthcare RAG Multi-Agent System
+# Healthcare AI Super-Agent
 
-> **Production-grade healthcare AI system with multi-agent orchestration, hybrid retrieval, and self-correction**
+A multi-agent RAG system for healthcare Q&A with hybrid retrieval, self-correction, medical record analysis, and ML-based risk assessment.
 
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-healthcare--rag--ui.onrender.com-blue?style=for-the-badge)](https://healthcare-rag-ui.onrender.com)
-[![API Docs](https://img.shields.io/badge/API%20Docs-Swagger-green?style=for-the-badge)](https://healthcare-rag-api.onrender.com/docs)
-[![Python](https://img.shields.io/badge/Python-3.11-blue?style=for-the-badge&logo=python)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-teal?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com/)
+**Live demo:** [healthcare-rag-ui.onrender.com](https://healthcare-rag-ui.onrender.com) · **API docs:** [healthcare-rag-api.onrender.com/docs](https://healthcare-rag-api.onrender.com/docs)
 
----
-
-## 🎯 What Makes This Different
-
-This is **NOT** a simple "retrieve + generate" chatbot. This is a **multi-agent healthcare intelligence system** with:
-
-- **5-agent pipeline** (Router → Retriever → Responder → Evaluator → Self-Correct)
-- **Hybrid retrieval** (BM25 + FAISS + RRF + Cross-Encoder Reranking)
-- **Self-correction loop** (automatic retry if quality < 0.7)
-- **Intent-based routing** (5 query types, 5 specialized paths)
-- **Personal medical records** (session-scoped FAISS for user documents)
-- **Production features** (caching, rate limiting, hallucination detection)
-
-**See [ARCHITECTURE.md](ARCHITECTURE.md) for complete technical breakdown**
+[![Python 3.11](https://img.shields.io/badge/Python-3.11-blue?logo=python)](https://python.org)
+[![LangGraph](https://img.shields.io/badge/LangGraph-0.4-green)](https://github.com/langchain-ai/langgraph)
+[![Tests](https://img.shields.io/badge/Tests-12%20passing-brightgreen)](tests/)
+[![CI](https://github.com/Santhakumarramesh/healthcare-rag-agent/actions/workflows/test.yml/badge.svg)](https://github.com/Santhakumarramesh/healthcare-rag-agent/actions)
 
 ---
 
-## 🚀 Live Demo
+## What it does
 
-**Try it now**: https://healthcare-rag-ui.onrender.com
+A user asks a healthcare question. Five async agents run in sequence:
 
-**Features visible in UI**:
-- ✅ Live agent pipeline visualization during response generation
-- ✅ Quality scores, hallucination risk, and retrieval confidence for every response
-- ✅ Intent classification badges (Medical FAQ, Emergency, Web Search, etc.)
-- ✅ Source citations with rerank scores
-- ✅ Full agent trace (Router → Retriever → Responder → Evaluator)
-- ✅ "How It Works" tab explaining the architecture
+1. **Router** — classifies intent (FAQ / emergency / web search / follow-up), rewrites query for retrieval
+2. **Retriever** — BM25 keyword + FAISS dense search fused with Reciprocal Rank Fusion, then cross-encoder reranked
+3. **Web Search** — for recent queries (2024+ drug recalls, outbreaks), routes to Tavily live search instead of static knowledge base
+4. **Responder** — generates grounded answer strictly from retrieved context
+5. **Evaluator** — scores faithfulness + relevance + safety; if score < 0.7, injects corrective prompt and retries once (self-correction loop)
+
+Every token streams to the UI in real time via Server-Sent Events.
 
 ---
 
-## 📊 System Architecture
+## Features — what is implemented now
+
+| Feature | Status |
+|---------|--------|
+| 4-agent async LangGraph pipeline with self-correction loop | ✅ |
+| Hybrid BM25 + FAISS retrieval with RRF fusion | ✅ |
+| Cross-encoder reranking (ms-marco-MiniLM) | ✅ |
+| Token streaming via SSE (`/chat/stream`) | ✅ |
+| Medical records upload + structured extraction (diagnoses, labs, meds) | ✅ |
+| Grounded Q&A over uploaded records (session-scoped FAISS) | ✅ |
+| ML + LLM patient risk assessment (9 clinical factors → GPT explanation) | ✅ |
+| Per-query hallucination detection (embedding similarity) | ✅ |
+| LRU response cache with TTL | ✅ |
+| Sliding-window rate limiter | ✅ |
+| Prometheus metrics (`/metrics`) | ✅ |
+| GitHub Actions CI (pytest on every push) | ✅ |
+| Docker + docker-compose full-stack deploy | ✅ |
+| Render deploy (API) + Streamlit Cloud (UI) | ✅ |
+
+## Optional integrations (require additional API keys)
+
+| Feature | How to enable |
+|---------|--------------|
+| NVIDIA NIM (Llama-3.1-405B) | Set `NVIDIA_API_KEY` in `.env` |
+| Tavily web search | Set `TAVILY_API_KEY` in `.env` |
+| Pinecone cloud vector store | Set `PINECONE_API_KEY` in `.env` |
+| AirLLM local privacy mode (Apple Silicon only) | `pip install airllm mlx mlx-lm`, set `LOCAL_MODE=true` |
+
+## Roadmap
+
+- [ ] Longitudinal health trend analysis (lab values across multiple records over time)
+- [ ] Drug interaction cross-reference against DrugBank open data
+- [ ] Streaming UI for risk assessment tab
+- [ ] RAGAS batch evaluation pipeline with MLflow logging
+- [ ] Fine-tuned cross-encoder for medical domain
+
+---
+
+## How to run locally
+
+**Prerequisites:** Python 3.11, OpenAI API key
+
+```bash
+git clone https://github.com/Santhakumarramesh/healthcare-rag-agent
+cd healthcare-rag-agent
+
+python3.11 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+
+cp .env.example .env
+# Add your OPENAI_API_KEY to .env
+
+python vectorstore/ingest.py    # build FAISS index (~30 seconds)
+python run.py api               # start API on :8000  (terminal 1)
+python run.py ui                # start UI on :8501   (terminal 2)
+```
+
+| Use case | Command |
+|----------|---------|
+| API only | `python run.py api` |
+| UI only | `python run.py ui` |
+| Full stack (Docker) | `docker-compose up --build` |
+| Render deployment | `render.yaml` (auto-detected) |
+
+**What happens when things are missing:**
+
+| Situation | Behavior |
+|-----------|----------|
+| No `OPENAI_API_KEY` | Ingest falls back to `sentence-transformers` locally; LLM calls fail with 401 |
+| No FAISS index | API runs ingest automatically on startup; logs warning if it fails |
+| Ingest fails | API starts in degraded mode; retriever returns empty results |
+| Pinecone not configured | Falls back to FAISS only; no error |
+
+---
+
+## Architecture
 
 ```
 User Query
-    ↓
-🧠 Router Agent (Intent Classification + Emergency Detection)
-    ↓
-📚 Retriever Agent (BM25 + FAISS + RRF + Rerank)
-    ↓
-💬 Responder Agent (Grounded Generation + Citations)
-    ↓
-✅ Evaluator Agent (Quality Score + Hallucination Risk)
-    ↓
-🔄 Self-Correction (if score < 0.7, retry once)
-    ↓
-Final Response
+    │
+    ▼
+┌─────────────────────────────────────────────────────────────┐
+│              4-Agent LangGraph Pipeline (async)              │
+│                                                             │
+│  Router → Retriever (BM25+FAISS+RRF+Rerank) → Responder    │
+│                    ↗ Web Search (Tavily)                    │
+│                                         ↓                   │
+│                              Evaluator (quality gate)        │
+│                              score<0.7 → retry Responder    │
+└─────────────────────────────────────────────────────────────┘
+    │
+    ▼
+FastAPI (SSE streaming) ←→ Streamlit UI (4 tabs)
 ```
 
-**Key Innovation**: Unlike basic RAG (retrieve → generate), this system has **4 specialized agents** working in sequence with **quality gating** and **automatic self-correction**.
+**Note on agent count:** The pipeline has 4 agent nodes (Router, Retriever/WebSearch, Responder, Evaluator). The self-correction is a conditional edge in the graph, not a separate agent node.
 
 ---
 
-## 🔥 Technical Highlights
+## API endpoints
 
-### Multi-Agent Pipeline
-- **LangGraph** state machine orchestration
-- **Async execution** throughout (FastAPI + asyncio)
-- **Conversation history** integration (last 4 messages)
-- **Self-correction** with quality thresholds
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/health` | Health check — includes `vector_store_ready` flag |
+| `GET` | `/metrics` | Prometheus metrics |
+| `GET` | `/stats` | Cache + rate limiter stats |
+| `POST` | `/chat` | Full pipeline, returns complete JSON |
+| `POST` | `/chat/stream` | SSE — token events + final metadata event |
+| `POST` | `/reset` | Clear conversation history |
+| `POST` | `/ingest/text` | Add text to shared knowledge base |
+| `POST` | `/ingest/file` | Upload PDF/text to shared knowledge base |
+| `POST` | `/records/upload` | Upload personal medical record (session-scoped) |
+| `POST` | `/records/analyze` | Extract structured data from uploaded records |
+| `POST` | `/records/query` | Ask questions about uploaded records |
+| `DELETE` | `/records/clear/{session_id}` | Wipe session records |
+| `POST` | `/risk/assess` | ML + LLM patient risk assessment |
+| `GET` | `/risk/factors` | Risk factor schema for UI form |
+| `GET` | `/local-model/status` | AirLLM local model status |
+| `POST` | `/local-model/toggle` | Switch cloud ↔ on-device LLM |
 
-### Hybrid Retrieval
-- **BM25** keyword search (exact medical term matching)
-- **FAISS** semantic search (OpenAI embeddings)
-- **RRF fusion** (α=0.5, combines rankings)
-- **Cross-encoder reranking** (final precision boost)
-- **Result**: ~85% precision@5 (vs ~60% with vector search alone)
-
-### Production Features
-- **Response caching** (30-min TTL, 40% cost reduction)
-- **Rate limiting** (20 req/min, 100 req/hour per client)
-- **Hallucination detection** (LLM-based scoring, 0-1 risk)
-- **Monitoring** (`/stats` endpoint, Prometheus metrics)
-
-### Personal Medical Records
-- **PDF upload** → Structured extraction (patient info, vitals, meds, diagnoses)
-- **Session-scoped FAISS** (in-memory, zero persistence)
-- **Grounded Q&A** against YOUR documents
-- **Privacy-first** (data deleted on session end)
+Full interactive docs: `https://healthcare-rag-api.onrender.com/docs`
 
 ---
 
-## 📈 Performance Metrics
+## Tech stack
 
-| Metric | Value |
-|---|---|
-| Response Time | 6-8 seconds |
-| Retrieval Precision@5 | ~85% |
-| Self-Correction Rate | ~12% |
-| Cache Hit Rate | ~35% |
-| High Hallucination Risk | <5% |
-| Emergency Detection | ~98% |
-
----
-
-## 🛠️ Technology Stack
-
-**Core**: LangChain, LangGraph, OpenAI GPT-4o-mini, FAISS, Pinecone
-
-**Retrieval**: rank-bm25, sentence-transformers, cross-encoder
-
-**API & UI**: FastAPI, Streamlit, uvicorn, Prometheus
-
-**Deployment**: Render (free tier), GitHub Actions CI/CD
+| Layer | Technology |
+|-------|-----------|
+| LLM orchestration | LangGraph 0.4 (async StateGraph) |
+| Primary LLM | OpenAI GPT-4o-mini |
+| Embeddings | OpenAI text-embedding-3-small (prod) |
+| Vector store | FAISS local + Pinecone cloud fallback |
+| Keyword search | BM25 (rank-bm25) |
+| Retrieval fusion | Reciprocal Rank Fusion (RRF) |
+| Reranking | cross-encoder/ms-marco-MiniLM-L-6-v2 |
+| Web search | Tavily API (optional) |
+| API | FastAPI + Uvicorn |
+| Streaming | Server-Sent Events (SSE) |
+| Frontend | Streamlit (4 tabs) |
+| Monitoring | Prometheus metrics |
+| Testing | pytest-asyncio, 12 tests |
+| CI | GitHub Actions |
+| Containerization | Docker + docker-compose |
 
 ---
 
-## 🏃 Quick Start
-
-### 1. Clone & Install
-
-```bash
-git clone https://github.com/Santhakumarramesh/healthcare-rag-agent.git
-cd healthcare-rag-agent
-pip install -r requirements-local.txt
-```
-
-### 2. Set Environment Variables
-
-```bash
-cp .env.example .env
-# Edit .env and add your OPENAI_API_KEY
-```
-
-### 3. Run Locally
-
-```bash
-# Start API
-python run.py api
-
-# Start UI (in another terminal)
-python run.py ui
-```
-
-**API**: http://localhost:8000
-**UI**: http://localhost:8501
-
----
-
-## 📁 Project Structure
+## Project structure
 
 ```
 healthcare-rag-agent/
 ├── agents/
-│   ├── rag_pipeline.py          # 5-agent LangGraph pipeline
-│   └── records_agent.py         # Personal records extraction
-├── vectorstore/
-│   ├── retriever.py             # Hybrid retrieval (BM25+FAISS+RRF)
-│   ├── ingest.py                # Document ingestion
-│   └── personal_store.py        # Session-scoped FAISS
+│   ├── rag_pipeline.py       # 4-agent async LangGraph pipeline
+│   ├── records_agent.py      # Medical record extraction + Q&A
+│   └── risk_agent.py         # ML risk scoring + LLM explanation
 ├── api/
-│   ├── main.py                  # FastAPI app (8 endpoints)
-│   └── records.py               # Medical records CRUD
+│   ├── main.py               # FastAPI — all endpoints
+│   └── records.py            # Personal records router
+├── vectorstore/
+│   ├── retriever.py          # BM25 + FAISS + RRF + reranking
+│   ├── ingest.py             # Document ingestion pipeline
+│   └── personal_store.py     # Session-scoped in-memory FAISS
 ├── streamlit_app/
-│   └── app.py                   # Interactive UI (721 lines)
+│   └── app.py                # Chat + Architecture + Risk + Records tabs
 ├── utils/
-│   ├── cache.py                 # Response caching
-│   ├── rate_limiter.py          # Token bucket rate limiter
-│   └── hallucination_detector.py # LLM-based scoring
+│   ├── config.py             # Centralized settings
+│   ├── cache.py              # LRU response cache
+│   ├── rate_limiter.py       # Sliding window rate limiter
+│   ├── hallucination_detector.py
+│   └── local_llm.py          # AirLLM wrapper (optional)
 ├── tests/
-│   ├── test_rag_pipeline.py     # Async tests
-│   └── test_retriever.py        # Retrieval tests
-└── data/
-    └── sample_medical_faq.py    # Base knowledge
+│   ├── test_config.py
+│   └── test_intelligence.py  # 12 async agent tests
+├── .github/workflows/        # CI
+├── docker-compose.yml        # Full-stack local deploy
+├── render.yaml               # Render deploy config
+├── Procfile                  # Process definition
+├── requirements.txt          # Production (Render — no torch)
+├── requirements-local.txt    # Local dev (includes sentence-transformers, ragas)
+└── requirements-ui.txt       # Streamlit Cloud (UI only — 3 packages)
 ```
 
-**Total**: 4,706 lines of Python across 20 files
+---
+
+## What I personally built
+
+- Designed the multi-agent LangGraph state machine (router + conditional edges + retry loop)
+- Implemented hybrid BM25 + FAISS retrieval with RRF fusion and cross-encoder reranking
+- Built the session-scoped personal document store (in-memory FAISS per user session)
+- Built the medical record extraction agent (structured JSON output with lab flagging)
+- Implemented the ML risk scoring engine + LLM explanation pipeline
+- Built all FastAPI endpoints including SSE streaming
+- Built the Streamlit UI (4 tabs with live pipeline visualization)
+- Configured CI, Docker, and Render deployment
 
 ---
 
-## 🧪 Testing
+## Limitations
 
-```bash
-pytest tests/ -v
-```
-
-**Coverage**: Router, Retriever, Responder, Evaluator agents + API endpoints
-
----
-
-## 🌐 API Endpoints
-
-| Endpoint | Method | Description |
-|---|---|---|
-| `/health` | GET | Health check + pipeline status |
-| `/chat` | POST | Main RAG endpoint (with caching) |
-| `/chat/stream` | POST | Server-sent events streaming |
-| `/records/upload` | POST | Upload PDF medical records |
-| `/records/analyze` | POST | Structured extraction |
-| `/records/query` | POST | Q&A against personal records |
-| `/stats` | GET | Cache & rate limiter metrics |
-| `/ingest/text` | POST | Add custom knowledge |
-
-**Full API docs**: https://healthcare-rag-api.onrender.com/docs
+- Personal document store is a singleton — breaks with multi-worker deployment (fine for free tier)
+- Render free tier cold-starts after 15 min inactivity — first request ~30 seconds
+- AirLLM privacy mode requires Apple Silicon Mac
+- Risk assessment uses rule-based scoring, not a trained ML model — production would use XGBoost on outcome data
+- NVIDIA NIM reranker and Tavily web search require separate API keys (commented out by default)
 
 ---
 
-## 🎨 UI Features
+## Author
 
-### Tab 1: Ask MediAssist
-- **Streaming responses** with live agent pipeline visualization
-- **Quality badges** (green ≥0.8, amber ≥0.6, red <0.6)
-- **Intent classification** (Medical FAQ, Emergency, Web Search, etc.)
-- **Source citations** with rerank scores
-- **Agent trace** (collapsible detail view)
-- **Sample queries** for quick testing
+**Santhakumar Ramesh** — AI/ML Engineer @ DXC Technology | MS Data Science, University at Buffalo
 
-### Tab 2: My Medical Records
-- **PDF upload** (drag & drop)
-- **Structured extraction** (patient info, vitals, medications, diagnoses)
-- **Grounded Q&A** against YOUR documents
-- **File management** (list, clear)
-- **Privacy-first** (session-scoped, no persistence)
-
-### Tab 3: How It Works
-- **Architecture diagram**
-- **Comparison table** (Basic RAG vs This System)
-- **Technical decisions** explained
-- **Live API endpoints** list
-
----
-
-## 🔒 Privacy & Safety
-
-- **Medical disclaimer** on every response
-- **Emergency detection** with immediate safety response
-- **Session-scoped data** (no persistence)
-- **Rate limiting** (abuse prevention)
-- **Hallucination detection** (risk scoring)
-
----
-
-## 📚 Documentation
-
-- **[ARCHITECTURE.md](ARCHITECTURE.md)** - Complete technical breakdown
-- **[IMPROVEMENTS.md](IMPROVEMENTS.md)** - Production features guide
-- **[API Docs](https://healthcare-rag-api.onrender.com/docs)** - Interactive Swagger UI
-
----
-
-## 🎯 Use Cases
-
-### For Patients
-- "What are the symptoms of Type 2 diabetes?"
-- "Upload my lab report → What was my HbA1c?"
-- "Are there any drug interactions between metformin and ibuprofen?"
-
-### For Healthcare Professionals
-- Quick reference for medical conditions
-- Patient education material generation
-- Clinical decision support (with proper validation)
-
-### For Developers
-- Reference implementation for production RAG systems
-- Multi-agent orchestration patterns
-- Healthcare AI safety mechanisms
-
----
-
-## 🚧 Roadmap
-
-- [ ] **Longitudinal health tracking** (upload multiple lab reports → track trends)
-- [ ] **Drug interaction intelligence** (DrugBank integration)
-- [ ] **Persistent cache** (Redis/Memcached for multi-instance)
-- [ ] **Advanced hallucination detection** (semantic + token similarity)
-- [ ] **Multi-modal support** (medical image analysis)
-- [ ] **Fine-tuned embeddings** (domain-specific medical terminology)
-
----
-
-## 📝 License
-
-MIT License - See [LICENSE](LICENSE) for details
-
----
-
-## 🤝 Contributing
-
-Contributions welcome! Please open an issue first to discuss proposed changes.
-
----
-
-## 📧 Contact
-
-**Author**: Santhakumar Ramesh
-
-**Live Demo**: https://healthcare-rag-ui.onrender.com
-
-**API**: https://healthcare-rag-api.onrender.com
-
----
-
-## ⭐ Acknowledgments
-
-Built with:
-- [LangChain](https://www.langchain.com/) - LLM orchestration
-- [LangGraph](https://github.com/langchain-ai/langgraph) - Multi-agent workflows
-- [FastAPI](https://fastapi.tiangolo.com/) - Modern Python web framework
-- [Streamlit](https://streamlit.io/) - Interactive UI
-- [OpenAI](https://openai.com/) - GPT-4o-mini LLM
-
----
-
-**⚠️ Medical Disclaimer**: This system provides general health information only. It is not a substitute for professional medical advice, diagnosis, or treatment. Always consult a qualified healthcare provider for personal medical decisions.
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-blue?logo=linkedin)](https://www.linkedin.com/in/santhakumar-ramesh/)
+[![Portfolio](https://img.shields.io/badge/Portfolio-Visit-green)](https://santhakumarramesh.github.io)

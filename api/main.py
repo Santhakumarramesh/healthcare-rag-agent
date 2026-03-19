@@ -103,15 +103,19 @@ class ChatResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: str
     pipeline_loaded: bool
+    vector_store_ready: bool
     model: str
     vector_store: str
 
 
 @app.get("/health", response_model=HealthResponse, tags=["System"])
 async def health_check():
+    index_path = Path(config.FAISS_INDEX_PATH)
+    vs_ready = (index_path / "index.faiss").exists()
     return HealthResponse(
         status="healthy" if pipeline else "degraded",
         pipeline_loaded=pipeline is not None,
+        vector_store_ready=vs_ready,
         model=config.OPENAI_MODEL,
         vector_store=config.VECTOR_STORE_TYPE,
     )
