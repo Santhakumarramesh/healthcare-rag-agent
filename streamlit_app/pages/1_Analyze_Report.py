@@ -66,36 +66,43 @@ with col_left:
     uploaded_file = render_upload_dropzone(key="report_upload")
     
     # File upload: analyze when file is selected
-    if uploaded_file is not None:
-        if st.button("Analyze Uploaded File", type="primary", use_container_width=True):
-            with st.spinner("Analyzing report..."):
-                try:
-                    response = requests.post(
-                        f"{API_BASE_URL}/reports/analyze",
-                        files={"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type or "application/octet-stream")},
-                        timeout=120
-                    )
-                    if response.status_code == 200:
-                        st.session_state.report_analysis = response.json()
-                        st.session_state.current_report = {
-                            "type": uploaded_file.name,
-                            "content": f"Uploaded: {uploaded_file.name}",
-                            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        }
-                        if "reports_analyzed" not in st.session_state:
-                            st.session_state.reports_analyzed = 0
-                        st.session_state.reports_analyzed += 1
-                        st.success("Report analyzed successfully")
-                        st.rerun()
-                    else:
-                        err = response.json().get("detail", response.text) if response.headers.get("content-type", "").startswith("application/json") else response.text
-                        st.error(f"Analysis failed: {err}")
-                except requests.exceptions.Timeout:
-                    st.error("Request timed out. The API may be starting up. Try again in a moment.")
-                except requests.exceptions.ConnectionError:
-                    st.error("Could not connect to API. Check that the API is running and API_BASE_URL is correct.")
-                except Exception as e:
-                    st.error(f"Error: {str(e)}")
+    st.markdown("<br>", unsafe_allow_html=True)
+    analyze_btn = st.button(
+        "Analyze Uploaded File" if uploaded_file else "Upload a file above to analyze",
+        type="primary",
+        use_container_width=True,
+        disabled=(uploaded_file is None),
+        key="analyze_upload_btn"
+    )
+    if uploaded_file and analyze_btn:
+        with st.spinner("Analyzing report..."):
+            try:
+                response = requests.post(
+                    f"{API_BASE_URL}/reports/analyze",
+                    files={"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type or "application/octet-stream")},
+                    timeout=120
+                )
+                if response.status_code == 200:
+                    st.session_state.report_analysis = response.json()
+                    st.session_state.current_report = {
+                        "type": uploaded_file.name,
+                        "content": f"Uploaded: {uploaded_file.name}",
+                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    }
+                    if "reports_analyzed" not in st.session_state:
+                        st.session_state.reports_analyzed = 0
+                    st.session_state.reports_analyzed += 1
+                    st.success("Report analyzed successfully")
+                    st.rerun()
+                else:
+                    err = response.json().get("detail", response.text) if response.headers.get("content-type", "").startswith("application/json") else response.text
+                    st.error(f"Analysis failed: {err}")
+            except requests.exceptions.Timeout:
+                st.error("Request timed out. The API may be starting up. Try again in a moment.")
+            except requests.exceptions.ConnectionError:
+                st.error("Could not connect to API. Check that the API is running and API_BASE_URL is correct.")
+            except Exception as e:
+                st.error(f"Error: {str(e)}")
     
     # Text input option
     with st.expander("Or paste report text"):
