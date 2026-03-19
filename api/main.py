@@ -152,7 +152,7 @@ class HealthResponse(BaseModel):
     pipeline_loaded: bool
     vector_store_ready: bool
     faiss_index_exists: bool
-    index_size: int
+    index_size: Optional[int] = 0
     model: str
     vector_store: str
 
