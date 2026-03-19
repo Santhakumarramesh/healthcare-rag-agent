@@ -61,20 +61,37 @@ with col_main:
     </div>
     """, unsafe_allow_html=True)
     
-    query, ask_btn = render_query_input_bar(
+    # Simple text area without session state conflicts
+    query = st.text_area(
+        "",
+        height=120,
         placeholder="Example: What are the symptoms of diabetes? What does elevated creatinine mean?",
-        key="ai_query"
+        key="ai_query_input",
+        label_visibility="collapsed"
     )
     
+    col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 2])
+    with col_btn1:
+        ask_btn = st.button("Ask Question", type="primary", use_container_width=True, key="ask_btn")
+    
     # Section 2: Suggested Questions
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown('<div style="font-size: 0.875rem; color: var(--text-muted); margin-bottom: 0.5rem;">Suggested Questions:</div>', unsafe_allow_html=True)
+    
     suggestions = [
-        "Explain these symptoms",
-        "What does this lab value mean?",
-        "Drug interactions to watch for",
+        "What are the symptoms of diabetes?",
+        "What does elevated creatinine mean?",
+        "Explain drug interactions",
         "When should I see a doctor?"
     ]
     
-    selected_suggestion = render_prompt_suggestion_row(suggestions)
+    cols = st.columns(len(suggestions))
+    selected_suggestion = None
+    for idx, (col, suggestion) in enumerate(zip(cols, suggestions)):
+        with col:
+            if st.button(suggestion, key=f"suggestion_{idx}", use_container_width=True):
+                selected_suggestion = suggestion
+    
     if selected_suggestion:
         query = selected_suggestion
         ask_btn = True
