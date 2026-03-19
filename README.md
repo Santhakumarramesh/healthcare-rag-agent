@@ -60,6 +60,7 @@ An intelligent healthcare assistant that:
 
 ### Medical Features
 - **Report analysis** - Upload PDF/images, extract lab values, flag abnormal results
+- **Serious condition follow-up** - Daily monitoring workflow for high-risk patients
 - **Emergency detection** - Alert for 14 critical symptoms
 - **Drug interaction warnings** - Common dangerous combinations
 - **Health recommendations** - AI-powered dietary and lifestyle advice
