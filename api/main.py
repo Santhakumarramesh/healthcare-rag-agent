@@ -52,7 +52,10 @@ async def lifespan(app: FastAPI):
 
     # Initialize database
     logger.info("Initializing database...")
-    init_db()
+    try:
+        init_db()
+    except Exception as e:
+        logger.error(f"Database initialization failed: {e} — continuing without database")
 
     # Run ingest at startup if FAISS index doesn't exist yet.
     # This handles Render deployments where ingest is not run as a build step.
@@ -75,7 +78,10 @@ async def lifespan(app: FastAPI):
         logger.success("Pipeline and Router loaded successfully!")
     except Exception as e:
         logger.error(f"Failed to initialize pipeline: {e}")
-        raise
+        logger.warning("Continuing with limited functionality...")
+        # Don't raise - allow API to start even if pipeline fails
+        pipeline = None
+        router_agent = None
     yield
     logger.info("Shutting down...")
 
