@@ -17,10 +17,10 @@ pinned: false
 [![LangChain](https://img.shields.io/badge/LangChain-0.3-orange)](https://langchain.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**Live Demo**: 
-- **UI**: [healthcare-rag-ui.onrender.com](https://healthcare-rag-ui.onrender.com)
-- **API**: [healthcare-rag-api.onrender.com](https://healthcare-rag-api.onrender.com)
-- **API Docs**: [/docs](https://healthcare-rag-api.onrender.com/docs)
+**Live Demo**:
+- **UI**: [Streamlit Community Cloud](https://your-app.streamlit.app) *(set up at share.streamlit.io)*
+- **API**: [Hugging Face Spaces](https://your-username-healthcare-rag-api.hf.space) *(set up at huggingface.co/spaces)*
+- **API Docs**: [/docs](https://your-username-healthcare-rag-api.hf.space/docs)
 
 ---
 
@@ -263,13 +263,33 @@ Patient:   patient@healthcare.ai / patient123
 docker-compose up --build
 ```
 
-### Render
+### Hugging Face Spaces (API) + Streamlit Cloud (UI)
 
-Automatically deploys from GitHub:
-- API: `healthcare-rag-api.onrender.com`
-- UI: `healthcare-rag-ui.onrender.com`
+**Step 1 — Build the FAISS index locally** (one-time setup):
+```bash
+python vectorstore/ingest.py
+git add vectorstore/faiss_index/
+git commit -m "chore: add pre-built FAISS index"
+git push
+```
 
-See `render.yaml` for configuration.
+**Step 2 — Deploy API to Hugging Face Spaces**:
+1. Create a Space at [huggingface.co/new-space](https://huggingface.co/new-space) → SDK: **Docker**
+2. Link your GitHub repo under *Files → Link to GitHub repository*
+3. Add secrets in Space Settings: `OPENAI_API_KEY`, `JWT_SECRET_KEY`, `CORS_ORIGINS`
+4. The Space auto-builds from the `Dockerfile` and redeploys on every push to `main`
+
+**Step 3 — Deploy UI to Streamlit Community Cloud**:
+1. Go to [share.streamlit.io](https://share.streamlit.io) → *New app*
+2. Repo: `Santhakumarramesh/healthcare-rag-agent`, branch: `main`
+3. Main file: `streamlit_app/app_healthcare.py`
+4. Requirements file: `requirements-ui.txt`
+5. Add secret: `API_BASE_URL = https://your-username-healthcare-rag-api.hf.space`
+
+**Step 4 — CI/CD auto-sync** (every push to main auto-deploys):
+Add to *GitHub → Settings → Secrets → Actions*:
+- Secret `HF_TOKEN` — from [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) (write scope)
+- Variable `HF_USERNAME` — your Hugging Face username
 
 ---
 
