@@ -15,9 +15,6 @@ openai==1.78.0
 # Vector Stores
 faiss-cpu==1.9.0.post1
 pinecone==6.0.0
-# sentence-transformers used as fallback when OPENAI_API_KEY not set
-# NOTE: pulls torch (~1.5GB) — set OPENAI_API_KEY on Render to skip this
-sentence-transformers==2.7.0
 
 # API Backend
 fastapi==0.115.12
