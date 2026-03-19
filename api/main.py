@@ -10,7 +10,6 @@ from datetime import datetime
 
 import json
 import asyncio
-import threading
 from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -56,11 +55,10 @@ async def lifespan(app: FastAPI):
     # NO blocking init - start immediately
     pipeline = None
     router_agent = None
-    logger.info("API startup complete - ready to serve")
 
-    # Load routers in background (don't block)
-    t = threading.Thread(target=_load_routers, daemon=True)
-    t.start()
+    # Load routers (required for /reports, /auth, etc.)
+    _load_routers()
+    logger.info("API startup complete - ready to serve")
     
     yield
     logger.info("Shutting down...")
