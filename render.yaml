@@ -6,7 +6,7 @@ services:
     region: oregon
     plan: free
     buildCommand: "pip install -r requirements.txt && python vectorstore/ingest.py"
-    startCommand: "uvicorn api.main:app --host 0.0.0.0 --port $PORT"
+    startCommand: "bash start_api.sh"
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.10"
@@ -38,7 +38,7 @@ services:
     region: oregon
     plan: free
     buildCommand: "pip install -r requirements-ui.txt"
-    startCommand: "streamlit run streamlit_app/app.py --server.port $PORT --server.headless true --server.enableCORS false"
+    startCommand: "bash start_ui.sh"
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.10"
