@@ -974,10 +974,45 @@ def get_avatar_svg(name, index=0):
     """
 
 def render_clinical_answer_card(response_data):
-    """Render structured clinical answer card"""
+    """Render structured clinical answer card with enhanced features"""
     answer = response_data.get("response", "")
-    quality_score = response_data.get("quality_score", 0)
+    quality_score = response_data.get("retrieval_confidence", response_data.get("quality_score", 0))
     sources = response_data.get("sources", [])
+    query_type = response_data.get("query_type", response_data.get("intent", "general_qa"))
+    routing_confidence = response_data.get("routing_confidence", 0)
+    citation_summary = response_data.get("citation_summary", {})
+    
+    # Query type badge
+    query_type_display = query_type.replace("_", " ").title()
+    query_type_colors = {
+        "symptom_check": "#ef4444",
+        "drug_info": "#3b82f6",
+        "report_explanation": "#8b5cf6",
+        "general_qa": "#10b981",
+        "preventive_care": "#f59e0b",
+        "follow_up": "#6b7280"
+    }
+    query_color = query_type_colors.get(query_type, "#6b7280")
+    
+    st.markdown(f"""
+    <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+        <span style="
+            background: {query_color};
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: 600;
+        ">🏷️ {query_type_display}</span>
+        <span style="
+            background: #f3f4f6;
+            color: #374151;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85em;
+        ">🎯 Routing: {routing_confidence*100:.0f}%</span>
+    </div>
+    """, unsafe_allow_html=True)
     
     # Extract key insights
     sentences = [s.strip() + "." for s in answer.split(".") if s.strip()]
@@ -1016,20 +1051,34 @@ def render_clinical_answer_card(response_data):
     </div>
     """, unsafe_allow_html=True)
     
-    # Sources (expandable)
+    # Enhanced Sources with citation summary
     if sources:
-        with st.expander(f"View {len(sources)} Source Citations"):
+        source_count = citation_summary.get("count", len(sources))
+        avg_relevance = citation_summary.get("avg_relevance", 0)
+        
+        with st.expander(f"📚 View {source_count} Source Citations (Avg Relevance: {avg_relevance*100:.0f}%)", expanded=False):
             for idx, source in enumerate(sources[:5], 1):
                 if isinstance(source, dict):
-                    source_name = source.get("source", "Document")
-                    score = source.get("score", 0)
-                    text_preview = source.get("text", "")[:150]
+                    # Handle both old and new citation formats
+                    source_name = source.get("title", source.get("source", "Document"))
+                    score = source.get("relevance_score", source.get("score", 0))
+                    text_preview = source.get("excerpt", source.get("text", ""))[:200]
+                    category = source.get("category", "General")
                     
                     st.markdown(f"""
                     <div class="source-card">
                         <div class="source-header">
-                            <div class="source-name">Source {idx}: {source_name}</div>
-                            <div class="source-score">Relevance: {score:.3f}</div>
+                            <div class="source-name">
+                                <strong>Source {idx}:</strong> {source_name}
+                                <span style="
+                                    background: #e5e7eb;
+                                    padding: 2px 8px;
+                                    border-radius: 8px;
+                                    font-size: 0.75em;
+                                    margin-left: 8px;
+                                ">{category}</span>
+                            </div>
+                            <div class="source-score">Relevance: {score*100:.0f}%</div>
                         </div>
                         <div class="source-preview">{text_preview}...</div>
                     </div>
@@ -1591,6 +1640,55 @@ elif st.session_state.current_page == "history":
     st.markdown('<h1 class="section-header-main">Patient History</h1>', unsafe_allow_html=True)
     st.markdown("View previous sessions and uploaded reports")
     st.markdown("<br>", unsafe_allow_html=True)
+    
+    # Fetch conversation history from API
+    try:
+        history_resp = requests.get(
+            f"{API_BASE}/history/{st.session_state.session_id}",
+            timeout=5
+        )
+        if history_resp.status_code == 200:
+            history_data = history_resp.json()
+            conversation_history = history_data.get("history", [])
+            session_stats = history_data.get("stats", {})
+            
+            # Display session stats
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Total Interactions", session_stats.get("interaction_count", 0))
+            with col2:
+                query_types = session_stats.get("query_types", {})
+                top_type = max(query_types.items(), key=lambda x: x[1])[0] if query_types else "None"
+                st.metric("Top Query Type", top_type.replace("_", " ").title())
+            with col3:
+                st.metric("Session Active", "Yes" if session_stats.get("exists") else "No")
+            
+            st.markdown("<br>", unsafe_allow_html=True)
+            
+            if conversation_history:
+                st.markdown("### Conversation History")
+                
+                # Display each interaction
+                for idx, interaction in enumerate(reversed(conversation_history[-10:]), 1):
+                    with st.expander(f"💬 Interaction {len(conversation_history) - idx + 1} - {interaction.get('timestamp', 'N/A')[:19]}", expanded=False):
+                        st.markdown(f"**Query:** {interaction.get('query', 'N/A')}")
+                        st.markdown(f"**Answer:** {interaction.get('answer', 'N/A')}")
+                        
+                        col_a, col_b, col_c = st.columns(3)
+                        with col_a:
+                            st.caption(f"Type: {interaction.get('query_type', 'N/A').replace('_', ' ').title()}")
+                        with col_b:
+                            confidence = interaction.get('confidence', 0)
+                            st.caption(f"Confidence: {confidence*100:.0f}%")
+                        with col_c:
+                            st.caption(f"Sources: {interaction.get('sources_count', 0)}")
+            else:
+                st.info("No conversation history yet. Start chatting to see your history here!")
+    except Exception as e:
+        st.warning(f"Could not load conversation history: {str(e)}")
+    
+    st.markdown("---")
+    st.markdown("### Session Messages (UI State)")
     
     if st.session_state.messages:
         st.markdown("### Recent Conversations")

@@ -18,7 +18,10 @@ from fastapi.responses import Response, StreamingResponse
 
 sys.path.append(str(Path(__file__).parent.parent))
 from agents.rag_pipeline import HealthcareRAGPipeline
+from agents.router_agent import RouterAgent, QueryType
 from api.records import router as records_router
+from services.memory_service import memory_service
+from services.citation_service import citation_service
 from utils.config import config
 from utils.cache import response_cache
 from utils.rate_limiter import rate_limiter
@@ -31,11 +34,12 @@ QUALITY_SCORE_HIST = Histogram("rag_quality_score", "Response quality scores",
                                 buckets=[0.1, 0.3, 0.5, 0.7, 0.8, 0.9, 1.0])
 
 pipeline: Optional[HealthcareRAGPipeline] = None
+router_agent: Optional[RouterAgent] = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global pipeline
+    global pipeline, router_agent
     logger.info("Starting Healthcare RAG API...")
 
     # Run ingest at startup if FAISS index doesn't exist yet.
@@ -55,7 +59,8 @@ async def lifespan(app: FastAPI):
 
     try:
         pipeline = HealthcareRAGPipeline()
-        logger.success("Pipeline loaded successfully!")
+        router_agent = RouterAgent()
+        logger.success("Pipeline and Router loaded successfully!")
     except Exception as e:
         logger.error(f"Failed to initialize pipeline: {e}")
         raise
@@ -98,6 +103,9 @@ class ChatResponse(BaseModel):
     agent_trace: List[str]
     sources: List[dict]
     latency_ms: float
+    query_type: Optional[str] = None
+    routing_confidence: Optional[float] = None
+    citation_summary: Optional[dict] = None
 
 
 class HealthResponse(BaseModel):
@@ -139,9 +147,29 @@ async def metrics():
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
+@app.get("/history/{session_id}", tags=["Memory"])
+async def get_conversation_history(session_id: str):
+    """Get conversation history for a session"""
+    history = memory_service.get_conversation_history(session_id)
+    stats = memory_service.get_session_stats(session_id)
+    
+    return {
+        "session_id": session_id,
+        "history": history,
+        "stats": stats
+    }
+
+
+@app.delete("/history/{session_id}", tags=["Memory"])
+async def clear_conversation_history(session_id: str):
+    """Clear conversation history for a session"""
+    memory_service.clear_session(session_id)
+    return {"message": "Session history cleared", "session_id": session_id}
+
+
 @app.post("/chat", response_model=ChatResponse, tags=["RAG"])
 async def chat(request: ChatRequest):
-    if not pipeline:
+    if not pipeline or not router_agent:
         raise HTTPException(status_code=503, detail="Pipeline not initialized")
 
     # Rate limiting
@@ -158,10 +186,50 @@ async def chat(request: ChatRequest):
 
     start_time = time.time()
     try:
-        result = await pipeline.run(request.query)
+        # 1. ROUTE THE QUERY
+        session_stats = memory_service.get_session_stats(client_id)
+        route_info = await router_agent.route(
+            request.query,
+            context={"has_previous_interaction": session_stats.get("interaction_count", 0) > 0}
+        )
+        
+        # 2. HANDLE EMERGENCY
+        if route_info["is_urgent"]:
+            emergency_response = {
+                "response": "⚠️ **EMERGENCY DETECTED**\n\nThis appears to be an urgent medical situation. Please:\n\n1. **Call emergency services (911) immediately**, or\n2. **Go to the nearest emergency room**\n\nDo not wait for online medical advice in emergency situations.",
+                "intent": "emergency",
+                "is_emergency": True,
+                "retrieval_confidence": 1.0,
+                "quality_score": 1.0,
+                "hallucination_risk": "none",
+                "evaluation_notes": "Emergency query detected",
+                "agent_trace": ["Emergency detection triggered"],
+                "sources": [],
+                "latency_ms": round((time.time() - start_time) * 1000, 2),
+                "query_type": route_info["type"],
+                "routing_confidence": route_info["confidence"]
+            }
+            EMERGENCY_COUNT.inc()
+            return ChatResponse(**emergency_response)
+        
+        # 3. GET CONVERSATION CONTEXT
+        conversation_context = memory_service.get_recent_context(client_id, limit=3)
+        
+        # 4. ENHANCE QUERY WITH CONTEXT
+        enhanced_query = request.query
+        if conversation_context:
+            enhanced_query = f"{conversation_context}\n\nCurrent question: {request.query}"
+        
+        # 5. RUN RAG PIPELINE
+        result = await pipeline.run(enhanced_query)
         latency_ms = (time.time() - start_time) * 1000
 
-        # Run hallucination detection if we have context
+        # 6. FORMAT CITATIONS
+        raw_sources = result.get("sources", [])
+        formatted_citations = citation_service.format_citations(raw_sources, max_sources=5)
+        citation_summary = citation_service.get_citation_summary(formatted_citations)
+
+        # 7. RUN HALLUCINATION DETECTION
         hallucination_score = 0.0
         if result.get("context") and config.OPENAI_API_KEY:
             hall_result = await detect_hallucination(
@@ -170,37 +238,59 @@ async def chat(request: ChatRequest):
                 api_key=config.OPENAI_API_KEY
             )
             hallucination_score = hall_result.get("score", 0.0)
-            # Override risk level if hallucination detected
             if hall_result.get("risk_level") == "high":
                 result["hallucination_risk"] = "high"
 
-        REQUEST_COUNT.labels(intent=result.get("intent", "unknown")).inc()
+        # 8. CALCULATE ENHANCED CONFIDENCE
+        retrieval_confidence = result.get("retrieval_confidence", 0.0)
+        quality_score = result.get("quality_score", 0.0)
+        grounding_score = 1.0 - hallucination_score
+        
+        enhanced_confidence = (
+            0.4 * retrieval_confidence +
+            0.4 * grounding_score +
+            0.2 * quality_score
+        )
+
+        # 9. UPDATE METRICS
+        REQUEST_COUNT.labels(intent=route_info["type"]).inc()
         REQUEST_LATENCY.observe(latency_ms / 1000)
-        if result.get("is_emergency"):
-            EMERGENCY_COUNT.inc()
-        QUALITY_SCORE_HIST.observe(result.get("quality_score", 0.5))
+        QUALITY_SCORE_HIST.observe(enhanced_confidence)
 
         logger.info(
             f"Query: '{request.query[:40]}...' | "
-            f"Intent: {result.get('intent')} | "
+            f"Type: {route_info['type']} | "
             f"Latency: {latency_ms:.0f}ms | "
-            f"Hallucination: {hallucination_score:.2f}"
+            f"Confidence: {enhanced_confidence:.2f} | "
+            f"Sources: {len(formatted_citations)}"
         )
 
         response_data = {
             "response": result["response"],
-            "intent": result.get("intent", "unknown"),
-            "is_emergency": result.get("is_emergency", False),
-            "retrieval_confidence": result.get("retrieval_confidence", 0.0),
-            "quality_score": result.get("quality_score", 0.0),
-            "hallucination_risk": result.get("hallucination_risk", "unknown"),
+            "intent": route_info["type"],
+            "is_emergency": False,
+            "retrieval_confidence": round(enhanced_confidence, 3),
+            "quality_score": round(quality_score, 3),
+            "hallucination_risk": result.get("hallucination_risk", "low"),
             "evaluation_notes": result.get("evaluation_notes", ""),
-            "agent_trace": result.get("agent_trace", []),
-            "sources": result.get("sources", []),
+            "agent_trace": result.get("agent_trace", []) + [f"Routed as: {route_info['type']}"],
+            "sources": formatted_citations,
             "latency_ms": round(latency_ms, 2),
+            "query_type": route_info["type"],
+            "routing_confidence": route_info["confidence"],
+            "citation_summary": citation_summary
         }
 
-        # Cache the response
+        # 10. STORE IN MEMORY
+        memory_service.add_interaction(client_id, {
+            "query": request.query,
+            "answer": result["response"],
+            "query_type": route_info["type"],
+            "confidence": enhanced_confidence,
+            "sources": formatted_citations
+        })
+
+        # 11. CACHE THE RESPONSE
         response_cache.set(request.query, response_data)
 
         return ChatResponse(**response_data)
