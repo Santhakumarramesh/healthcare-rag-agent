@@ -19,7 +19,6 @@ Pipeline:
 """
 import sys
 import json
-import pickle
 import numpy as np
 from pathlib import Path
 from loguru import logger
@@ -62,60 +61,97 @@ def compute_risk_score(inputs: dict) -> tuple[float, dict]:
     breakdown = {}
 
     age = inputs.get("age", 45)
-    if age >= 65:   pts = 4
-    elif age >= 55: pts = 3
-    elif age >= 45: pts = 2
-    elif age >= 35: pts = 1
-    else:           pts = 0
-    score += pts; breakdown["Age"] = pts
+    if age >= 65:
+        pts = 4
+    elif age >= 55:
+        pts = 3
+    elif age >= 45:
+        pts = 2
+    elif age >= 35:
+        pts = 1
+    else:
+        pts = 0
+    score += pts
+    breakdown["Age"] = pts
 
     bmi = inputs.get("bmi", 25)
-    if bmi >= 35:   pts = 4
-    elif bmi >= 30: pts = 3
-    elif bmi >= 25: pts = 2
-    else:           pts = 0
-    score += pts; breakdown["BMI"] = pts
+    if bmi >= 35:
+        pts = 4
+    elif bmi >= 30:
+        pts = 3
+    elif bmi >= 25:
+        pts = 2
+    else:
+        pts = 0
+    score += pts
+    breakdown["BMI"] = pts
 
     sbp = inputs.get("systolic_bp", 120)
-    if sbp >= 160:  pts = 4
-    elif sbp >= 140: pts = 3
-    elif sbp >= 130: pts = 2
-    elif sbp >= 120: pts = 1
-    else:            pts = 0
-    score += pts; breakdown["Systolic BP"] = pts
+    if sbp >= 160:
+        pts = 4
+    elif sbp >= 140:
+        pts = 3
+    elif sbp >= 130:
+        pts = 2
+    elif sbp >= 120:
+        pts = 1
+    else:
+        pts = 0
+    score += pts
+    breakdown["Systolic BP"] = pts
 
     glucose = inputs.get("glucose", 95)
-    if glucose >= 200:  pts = 5
-    elif glucose >= 126: pts = 4
-    elif glucose >= 110: pts = 2
-    elif glucose >= 100: pts = 1
-    else:                pts = 0
-    score += pts; breakdown["Fasting glucose"] = pts
+    if glucose >= 200:
+        pts = 5
+    elif glucose >= 126:
+        pts = 4
+    elif glucose >= 110:
+        pts = 2
+    elif glucose >= 100:
+        pts = 1
+    else:
+        pts = 0
+    score += pts
+    breakdown["Fasting glucose"] = pts
 
     hba1c = inputs.get("hba1c", 5.5)
-    if hba1c >= 9:    pts = 5
-    elif hba1c >= 7:  pts = 4
-    elif hba1c >= 6.5: pts = 3
-    elif hba1c >= 5.7: pts = 1
-    else:              pts = 0
-    score += pts; breakdown["HbA1c"] = pts
+    if hba1c >= 9:
+        pts = 5
+    elif hba1c >= 7:
+        pts = 4
+    elif hba1c >= 6.5:
+        pts = 3
+    elif hba1c >= 5.7:
+        pts = 1
+    else:
+        pts = 0
+    score += pts
+    breakdown["HbA1c"] = pts
 
     chol = inputs.get("cholesterol", 180)
-    if chol >= 280:   pts = 3
-    elif chol >= 240: pts = 2
-    elif chol >= 200: pts = 1
-    else:             pts = 0
-    score += pts; breakdown["Cholesterol"] = pts
+    if chol >= 280:
+        pts = 3
+    elif chol >= 240:
+        pts = 2
+    elif chol >= 200:
+        pts = 1
+    else:
+        pts = 0
+    score += pts
+    breakdown["Cholesterol"] = pts
 
     pts = 2 if inputs.get("smoking", 0) else 0
-    score += pts; breakdown["Smoking"] = pts
+    score += pts
+    breakdown["Smoking"] = pts
 
     pts = 3 if inputs.get("family_history", 0) else 0
-    score += pts; breakdown["Family history"] = pts
+    score += pts
+    breakdown["Family history"] = pts
 
     activity = inputs.get("physical_activity", 1)
     pts = {0: 2, 1: 1, 2: 0}.get(activity, 0)
-    score += pts; breakdown["Physical activity"] = pts
+    score += pts
+    breakdown["Physical activity"] = pts
 
     max_score = 32.0
     probability = min(score / max_score, 1.0)
