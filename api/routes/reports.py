@@ -43,20 +43,22 @@ def extract_text_from_upload(upload: UploadFile) -> str:
     if filename.endswith((".png", ".jpg", ".jpeg")):
         try:
             from PIL import Image
-            import pytesseract
-
+            try:
+                import pytesseract
+            except ImportError:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Image OCR is not available on this server. Please paste the report text or upload a PDF/TXT file."
+                )
             image = Image.open(io.BytesIO(content))
             text = pytesseract.image_to_string(image)
             if not text.strip():
-                raise HTTPException(status_code=400, detail="Could not extract text from image.")
+                raise HTTPException(status_code=400, detail="Could not extract text from image. Try pasting the text or uploading a PDF.")
             return text
-        except ImportError:
-            raise HTTPException(
-                status_code=500,
-                detail="OCR dependencies missing. Install pillow and pytesseract."
-            )
+        except HTTPException:
+            raise
         except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Failed to read image: {e}")
+            raise HTTPException(status_code=400, detail=f"Failed to read image: {str(e)}")
 
     raise HTTPException(
         status_code=400,

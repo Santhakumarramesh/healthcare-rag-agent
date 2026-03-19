@@ -39,3 +39,4 @@ class ReportAnalysisResponse(BaseModel):
     extracted_values: List[ExtractedValue]
     sources: List[SourceItem]
     safety_note: str
+    report_type: Optional[str] = "Medical Report"

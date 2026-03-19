@@ -357,4 +357,4 @@ with col_f2:
 
 with col_f3:
     if st.button("View System Info", use_container_width=True):
-        st.switch_page("pages/healthcare/5_Monitoring.py")
+        st.switch_page("pages/5_Monitoring.py")

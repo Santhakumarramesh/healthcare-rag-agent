@@ -496,8 +496,8 @@ with col_f1:
 
 with col_f2:
     if st.button("View Records Timeline", use_container_width=True):
-        st.switch_page("pages/healthcare/4_Records_Timeline.py")
+        st.switch_page("pages/4_Records_Timeline.py")
 
 with col_f3:
     if st.button("Ask AI Question", use_container_width=True):
-        st.switch_page("pages/healthcare/2_Ask_AI.py")
+        st.switch_page("pages/2_Ask_AI.py")

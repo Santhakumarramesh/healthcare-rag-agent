@@ -354,8 +354,8 @@ with col_f1:
 
 with col_f2:
     if st.button("Analyze Report", use_container_width=True):
-        st.switch_page("pages/healthcare/1_Analyze_Report.py")
+        st.switch_page("pages/1_Analyze_Report.py")
 
 with col_f3:
     if st.button("View Records", use_container_width=True):
-        st.switch_page("pages/healthcare/4_Records_Timeline.py")
+        st.switch_page("pages/4_Records_Timeline.py")

@@ -110,6 +110,7 @@ class ReportService:
                 "safety_note",
                 "This analysis is informational and should not replace professional medical advice."
             ),
+            "report_type": llm_output.get("report_type", "Medical Report"),
         }
         
         logger.success(f"[ReportService] Analysis complete (confidence: {confidence})")

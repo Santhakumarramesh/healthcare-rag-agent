@@ -42,12 +42,12 @@ def render_sidebar_nav(current_page: str):
     # Navigation links
     pages = {
         "Home": "app_healthcare.py",
-        "Analyze Report": "pages/healthcare/1_Analyze_Report.py",
-        "Ask AI": "pages/healthcare/2_Ask_AI.py",
-        "Follow-up Monitor": "pages/healthcare/3_Followup_Monitor.py",
-        "Records Timeline": "pages/healthcare/4_Records_Timeline.py",
-        "Monitoring": "pages/healthcare/5_Monitoring.py",
-        "Settings": "pages/healthcare/6_Settings.py"
+        "Analyze Report": "pages/1_Analyze_Report.py",
+        "Ask AI": "pages/2_Ask_AI.py",
+        "Follow-up Monitor": "pages/3_Followup_Monitor.py",
+        "Records Timeline": "pages/4_Records_Timeline.py",
+        "Monitoring": "pages/5_Monitoring.py",
+        "Settings": "pages/6_Settings.py"
     }
     
     for page_name, page_path in pages.items():

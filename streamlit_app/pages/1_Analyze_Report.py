@@ -65,6 +65,38 @@ with col_left:
     
     uploaded_file = render_upload_dropzone(key="report_upload")
     
+    # File upload: analyze when file is selected
+    if uploaded_file is not None:
+        if st.button("Analyze Uploaded File", type="primary", use_container_width=True):
+            with st.spinner("Analyzing report..."):
+                try:
+                    response = requests.post(
+                        f"{API_BASE_URL}/reports/analyze",
+                        files={"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type or "application/octet-stream")},
+                        timeout=120
+                    )
+                    if response.status_code == 200:
+                        st.session_state.report_analysis = response.json()
+                        st.session_state.current_report = {
+                            "type": uploaded_file.name,
+                            "content": f"Uploaded: {uploaded_file.name}",
+                            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        }
+                        if "reports_analyzed" not in st.session_state:
+                            st.session_state.reports_analyzed = 0
+                        st.session_state.reports_analyzed += 1
+                        st.success("Report analyzed successfully")
+                        st.rerun()
+                    else:
+                        err = response.json().get("detail", response.text) if response.headers.get("content-type", "").startswith("application/json") else response.text
+                        st.error(f"Analysis failed: {err}")
+                except requests.exceptions.Timeout:
+                    st.error("Request timed out. The API may be starting up. Try again in a moment.")
+                except requests.exceptions.ConnectionError:
+                    st.error("Could not connect to API. Check that the API is running and API_BASE_URL is correct.")
+                except Exception as e:
+                    st.error(f"Error: {str(e)}")
+    
     # Text input option
     with st.expander("Or paste report text"):
         report_text = st.text_area(
@@ -75,30 +107,37 @@ with col_left:
         )
         
         if st.button("Analyze Text", type="primary", use_container_width=True):
-            if report_text:
+            if report_text and len(report_text.strip()) >= 10:
                 with st.spinner("Analyzing report text..."):
                     try:
                         response = requests.post(
                             f"{API_BASE_URL}/reports/analyze-text",
-                            json={"text": report_text},
+                            json={"text": report_text.strip()},
                             timeout=120
                         )
-                        
                         if response.status_code == 200:
                             st.session_state.report_analysis = response.json()
                             st.session_state.current_report = {
                                 "type": "text",
-                                "content": report_text[:200] + "...",
+                                "content": report_text[:200] + ("..." if len(report_text) > 200 else ""),
                                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                             }
-                            if "reports_analyzed" in st.session_state:
-                                st.session_state.reports_analyzed += 1
-                            st.success("✓ Report analyzed successfully")
+                            if "reports_analyzed" not in st.session_state:
+                                st.session_state.reports_analyzed = 0
+                            st.session_state.reports_analyzed += 1
+                            st.success("Report analyzed successfully")
                             st.rerun()
                         else:
-                            st.error(f"Analysis failed: {response.status_code}")
+                            err = response.json().get("detail", response.text) if response.headers.get("content-type", "").startswith("application/json") else response.text
+                            st.error(f"Analysis failed: {err}")
+                    except requests.exceptions.Timeout:
+                        st.error("Request timed out. The API may be starting up. Try again in a moment.")
+                    except requests.exceptions.ConnectionError:
+                        st.error("Could not connect to API. Check that the API is running.")
                     except Exception as e:
                         st.error(f"Error: {str(e)}")
+            elif report_text and len(report_text.strip()) < 10:
+                st.warning("Please enter at least 10 characters of report text.")
     
     # Section 2: File Metadata (if uploaded)
     if st.session_state.current_report:
@@ -256,7 +295,7 @@ with col_right:
         # Empty state
         st.markdown("""
         <div class="answer-card" style="text-align: center; padding: 4rem 2rem;">
-            <div style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.3;">📄</div>
+            <div style="font-size: 2rem; margin-bottom: 1rem; opacity: 0.4; font-weight: 300;">Report</div>
             <div style="font-size: 1.25rem; font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem;">
                 Ready to Analyze
             </div>
@@ -278,9 +317,9 @@ with col_f1:
 
 with col_f2:
     if st.button("View Records Timeline", use_container_width=True):
-        st.switch_page("pages/healthcare/4_Records_Timeline.py")
+        st.switch_page("pages/4_Records_Timeline.py")
 
 with col_f3:
     if st.session_state.report_analysis:
         if st.button("Ask Question About Report", use_container_width=True):
-            st.switch_page("pages/healthcare/2_Ask_AI.py")
+            st.switch_page("pages/2_Ask_AI.py")
