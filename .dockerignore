@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Test / coverage artefacts
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+dist/
+build/
+
+# IDE & editor
+.cursor/
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Secrets & environment files (never copy into image)
+.env
+.env.local
+.env.*.local
+
+# Git history
+.git/
+.gitignore
+
+# Large data files that are rebuilt at runtime
+data/raw_datasets/
+data/processed/
+# Keep faiss_index folder structure but not the binary indices
+data/faiss_index/*.faiss
+data/faiss_index/*.pkl
+vectorstore/faiss_index/
+vectorstore/faiss_index_test/
+
+# Logs
+logs/*.log
+
+# Documentation (not needed in image)
+docs/
+
+# Node (if any frontend tooling is ever added)
+node_modules/
