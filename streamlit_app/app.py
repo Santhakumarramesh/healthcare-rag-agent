@@ -1265,75 +1265,192 @@ elif st.session_state.current_page == "reports":
                     st.markdown(" | ".join(info_items))
                 st.markdown("<br>", unsafe_allow_html=True)
             
-            # Lab Values
-            st.markdown("#### Lab Values")
-            labs = result.get("lab_values", [])
-            if labs:
-                for lab in labs:
-                    status = lab.get("status", "UNKNOWN")
-                    status_color = "🟢" if status == "NORMAL" else "🔴" if status == "ABNORMAL" else "🟡"
+            # Create tabs for better organization
+            tab1, tab2, tab3, tab4 = st.tabs(["📊 Lab Results", "📋 Clinical Summary", "💊 Medications & Allergies", "🤖 AI Recommendations"])
+            
+            with tab1:
+                st.markdown("### Laboratory Results")
+                labs = result.get("lab_values", [])
+                if labs:
+                    # Create a summary card
+                    normal_count = sum(1 for lab in labs if lab.get("status") == "NORMAL")
+                    abnormal_count = len(labs) - normal_count
                     
-                    st.markdown(f"{status_color} **{lab.get('name')}**: {lab.get('value')}")
-                    if lab.get("normal_range"):
-                        st.caption(f"Normal range: {lab['normal_range']}")
-                    if lab.get("interpretation"):
-                        st.info(lab['interpretation'])
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Total Tests", len(labs))
+                    with col2:
+                        st.metric("Normal", normal_count, delta=None, delta_color="normal")
+                    with col3:
+                        st.metric("Abnormal", abnormal_count, delta=None if abnormal_count == 0 else f"+{abnormal_count}", delta_color="inverse")
+                    
                     st.markdown("<br>", unsafe_allow_html=True)
-            else:
-                st.info("No lab values detected")
+                    
+                    # Display each lab value
+                    for lab in labs:
+                        status = lab.get("status", "UNKNOWN")
+                        
+                        # Status icon and color
+                        if status == "NORMAL":
+                            status_icon = "🟢"
+                            status_text = "Normal"
+                            border_color = "#10b981"
+                        elif status in ["HIGH", "LOW"]:
+                            status_icon = "🔴"
+                            status_text = status.title()
+                            border_color = "#ef4444"
+                        elif status == "CRITICAL":
+                            status_icon = "⚠️"
+                            status_text = "Critical"
+                            border_color = "#dc2626"
+                        else:
+                            status_icon = "⚪"
+                            status_text = "Unknown"
+                            border_color = "#6b7280"
+                        
+                        # Lab value card
+                        st.markdown(f"""
+                        <div style="
+                            border-left: 4px solid {border_color};
+                            padding: 12px 16px;
+                            margin-bottom: 12px;
+                            background: #f9fafb;
+                            border-radius: 4px;
+                        ">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <strong style="font-size: 1.1em;">{status_icon} {lab.get('name')}</strong>
+                                    <div style="margin-top: 4px;">
+                                        <span style="font-size: 1.3em; font-weight: 600; color: {border_color};">{lab.get('value')}</span>
+                                    </div>
+                                </div>
+                                <div style="text-align: right;">
+                                    <span style="
+                                        background: {border_color};
+                                        color: white;
+                                        padding: 4px 12px;
+                                        border-radius: 12px;
+                                        font-size: 0.85em;
+                                        font-weight: 600;
+                                    ">{status_text}</span>
+                                </div>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        if lab.get("normal_range"):
+                            st.caption(f"📏 Normal range: {lab['normal_range']}")
+                        if lab.get("interpretation"):
+                            st.info(f"💡 {lab['interpretation']}")
+                        st.markdown("<br>", unsafe_allow_html=True)
+                else:
+                    st.info("No lab values detected in the report")
             
-            # Diagnoses
-            diagnoses = result.get("diagnoses", [])
-            if diagnoses:
-                st.markdown("#### Diagnoses")
-                for dx in diagnoses:
-                    st.markdown(f"- {dx}")
-                st.markdown("<br>", unsafe_allow_html=True)
-            
-            # Medications
-            medications = result.get("medications", [])
-            if medications:
-                st.markdown("#### Medications")
-                for med in medications:
-                    st.markdown(f"- {med}")
-                st.markdown("<br>", unsafe_allow_html=True)
-            
-            # Key Findings
-            key_findings = result.get("key_findings", "")
-            if key_findings:
-                st.markdown("#### Key Findings")
-                st.markdown(key_findings)
-                st.markdown("<br>", unsafe_allow_html=True)
-            
-            # Recommended Actions
-            actions = result.get("recommended_actions", [])
-            if actions:
-                st.markdown("#### Recommended Actions")
-                for action in actions:
-                    st.markdown(f"- {action}")
-                st.markdown("<br>", unsafe_allow_html=True)
-            
-            # Abnormal Flags
-            abnormal_flags = result.get("abnormal_flags", [])
-            if abnormal_flags:
-                st.warning("**⚠️ Abnormal Values Detected:**")
-                for flag in abnormal_flags:
-                    st.markdown(f"- {flag}")
-                st.markdown("<br>", unsafe_allow_html=True)
-            
-            # AI-Powered Health Recommendations
-            health_recommendations = result.get("health_recommendations")
-            if health_recommendations:
-                st.markdown("---")
-                st.markdown("### 🤖 AI Health Recommendations")
-                st.markdown("*Personalized suggestions based on your lab results*")
-                st.markdown("<br>", unsafe_allow_html=True)
+            with tab2:
+                st.markdown("### Clinical Summary")
                 
-                # Display recommendations in an expandable section for better UX
-                with st.expander("📋 View Detailed Health Recommendations", expanded=True):
+                # Diagnoses
+                diagnoses = result.get("diagnoses", [])
+                if diagnoses:
+                    st.markdown("#### 🏥 Diagnoses")
+                    for dx in diagnoses:
+                        st.markdown(f"- {dx}")
+                    st.markdown("<br>", unsafe_allow_html=True)
+                
+                # Key Findings
+                key_findings = result.get("key_findings", "")
+                if key_findings:
+                    st.markdown("#### 🔍 Key Findings")
+                    st.info(key_findings)
+                    st.markdown("<br>", unsafe_allow_html=True)
+                
+                # Abnormal Flags
+                abnormal_flags = result.get("abnormal_flags", [])
+                if abnormal_flags:
+                    st.markdown("#### ⚠️ Abnormal Values Detected")
+                    for flag in abnormal_flags:
+                        st.warning(f"• {flag}")
+                    st.markdown("<br>", unsafe_allow_html=True)
+                
+                # Recommended Actions
+                actions = result.get("recommended_actions", [])
+                if actions:
+                    st.markdown("#### ✅ Recommended Actions")
+                    for action in actions:
+                        st.markdown(f"- {action}")
+                    st.markdown("<br>", unsafe_allow_html=True)
+                
+                if not diagnoses and not key_findings and not abnormal_flags and not actions:
+                    st.info("No clinical summary available")
+            
+            with tab3:
+                st.markdown("### Medications & Allergies")
+                
+                # Medications
+                medications = result.get("medications", [])
+                if medications:
+                    st.markdown("#### 💊 Current Medications")
+                    for med in medications:
+                        if isinstance(med, dict):
+                            med_name = med.get('name', 'Unknown')
+                            med_dose = med.get('dose', '')
+                            med_freq = med.get('frequency', '')
+                            med_indication = med.get('indication', '')
+                            
+                            st.markdown(f"""
+                            <div style="
+                                border: 1px solid #e5e7eb;
+                                padding: 12px;
+                                margin-bottom: 8px;
+                                border-radius: 8px;
+                                background: #f9fafb;
+                            ">
+                                <strong style="color: #1f2937; font-size: 1.1em;">💊 {med_name}</strong><br>
+                                {f'<span style="color: #6b7280;">Dose: {med_dose}</span><br>' if med_dose else ''}
+                                {f'<span style="color: #6b7280;">Frequency: {med_freq}</span><br>' if med_freq else ''}
+                                {f'<span style="color: #6b7280;">For: {med_indication}</span>' if med_indication else ''}
+                            </div>
+                            """, unsafe_allow_html=True)
+                        else:
+                            st.markdown(f"- 💊 {med}")
+                    st.markdown("<br>", unsafe_allow_html=True)
+                else:
+                    st.info("No medications listed in the report")
+                
+                # Allergies
+                allergies = result.get("allergies", [])
+                if allergies:
+                    st.markdown("#### ⚠️ Known Allergies")
+                    
+                    # Check if there are actual allergies or just "Not specified"
+                    has_real_allergies = any(
+                        allergy and allergy.lower() not in ["not specified", "none", "n/a", "nil"]
+                        for allergy in allergies
+                    )
+                    
+                    if has_real_allergies:
+                        for allergy in allergies:
+                            if allergy and allergy.lower() not in ["not specified", "none", "n/a", "nil"]:
+                                st.error(f"⚠️ **{allergy}**")
+                    else:
+                        st.success("✅ No known allergies reported")
+                else:
+                    st.info("Allergy information not available in the report")
+            
+            with tab4:
+                st.markdown("### AI-Powered Health Recommendations")
+                
+                # AI-Powered Health Recommendations
+                health_recommendations = result.get("health_recommendations")
+                if health_recommendations:
+                    st.markdown("*Personalized suggestions based on your lab results*")
+                    st.markdown("<br>", unsafe_allow_html=True)
                     st.markdown(health_recommendations)
+                else:
+                    st.info("AI recommendations not generated for this report")
             
             # Safety Note
+            st.markdown("---")
             st.warning("**When to Seek Medical Attention:** If you notice any abnormal values or have concerns, consult your healthcare provider immediately.")
             
             # Processing Time
