@@ -48,6 +48,9 @@ if "current_report" not in st.session_state:
 if "report_analysis" not in st.session_state:
     st.session_state.report_analysis = None
 
+if "analysis_error" not in st.session_state:
+    st.session_state.analysis_error = None
+
 # Two-column layout
 col_left, col_right = st.columns([1, 1.8], gap="large")
 
@@ -75,7 +78,8 @@ with col_left:
         key="analyze_upload_btn"
     )
     if uploaded_file and analyze_btn:
-        with st.spinner("Analyzing report..."):
+        st.session_state.analysis_error = None
+        with st.spinner("Analyzing report... (first request may take 1–2 min if API is cold)"):
             try:
                 response = requests.post(
                     f"{API_BASE_URL}/reports/analyze",
@@ -92,16 +96,19 @@ with col_left:
                     if "reports_analyzed" not in st.session_state:
                         st.session_state.reports_analyzed = 0
                     st.session_state.reports_analyzed += 1
-                    st.success("Report analyzed successfully")
                     st.rerun()
                 else:
                     err = response.json().get("detail", response.text) if response.headers.get("content-type", "").startswith("application/json") else response.text
+                    st.session_state.analysis_error = str(err)
                     st.error(f"Analysis failed: {err}")
             except requests.exceptions.Timeout:
-                st.error("Request timed out. The API may be starting up. Try again in a moment.")
+                st.session_state.analysis_error = "Request timed out. The API may be starting up. Try again in a moment."
+                st.error(st.session_state.analysis_error)
             except requests.exceptions.ConnectionError:
-                st.error("Could not connect to API. Check that the API is running and API_BASE_URL is correct.")
+                st.session_state.analysis_error = "Could not connect to API. Is the API running?"
+                st.error(st.session_state.analysis_error)
             except Exception as e:
+                st.session_state.analysis_error = str(e)
                 st.error(f"Error: {str(e)}")
     
     # Text input option
@@ -129,10 +136,10 @@ with col_left:
                                 "content": report_text[:200] + ("..." if len(report_text) > 200 else ""),
                                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                             }
+                            st.session_state.analysis_error = None
                             if "reports_analyzed" not in st.session_state:
                                 st.session_state.reports_analyzed = 0
                             st.session_state.reports_analyzed += 1
-                            st.success("Report analyzed successfully")
                             st.rerun()
                         else:
                             err = response.json().get("detail", response.text) if response.headers.get("content-type", "").startswith("application/json") else response.text
@@ -198,9 +205,25 @@ with col_left:
 # ============================================================================
 
 with col_right:
+    # Show error if analysis failed
+    if st.session_state.analysis_error:
+        st.error(st.session_state.analysis_error)
+        if st.button("Clear error", key="clear_error_btn"):
+            st.session_state.analysis_error = None
+            st.rerun()
+        st.markdown("<br>", unsafe_allow_html=True)
+
     if st.session_state.report_analysis:
         analysis = st.session_state.report_analysis
-        
+        st.session_state.analysis_error = None  # Clear any prior error
+
+        st.success("Report analyzed successfully. Review the results below.")
+        if st.button("Clear and analyze another", key="clear_analysis_btn"):
+            st.session_state.report_analysis = None
+            st.session_state.current_report = None
+            st.rerun()
+        st.markdown("<br>", unsafe_allow_html=True)
+
         # Section 4: Analysis Summary
         st.markdown("""
         <div style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin-bottom: 1rem;">
