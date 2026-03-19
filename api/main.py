@@ -87,20 +87,27 @@ def _load_routers():
     global _routers_loaded
     if _routers_loaded:
         return
+    _ensure_db()
+    # Load reports first (critical for Analyze Report page)
     try:
-        _ensure_db()
-        from api.records import router as records_router
-        from api.auth import router as auth_router
-        from api.admin import router as admin_router
         from api.routes.reports import router as reports_router
-        app.include_router(records_router)
-        app.include_router(auth_router)
-        app.include_router(admin_router)
         app.include_router(reports_router)
-        _routers_loaded = True
-        logger.info("Routers loaded")
+        logger.info("Reports router loaded")
     except Exception as e:
-        logger.error(f"Router load failed: {e}")
+        logger.error(f"Reports router failed: {e}")
+    # Load other routers
+    for name, mod_path, attr in [
+        ("records", "api.records", "router"),
+        ("auth", "api.auth", "router"),
+        ("admin", "api.admin", "router"),
+    ]:
+        try:
+            mod = __import__(mod_path, fromlist=[attr])
+            app.include_router(getattr(mod, attr))
+            logger.info(f"{name} router loaded")
+        except Exception as e:
+            logger.error(f"{name} router failed: {e}")
+    _routers_loaded = True
 
 
 # ============================================================================
