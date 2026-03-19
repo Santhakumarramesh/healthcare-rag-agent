@@ -1,6 +1,6 @@
-# 🏥 Healthcare AI Platform
+# Healthcare AI Platform
 
-**Production-ready healthcare AI system with multi-agent reasoning, multimodal analysis, and enterprise-grade security.**
+**Production-style healthcare AI system with multi-agent routing, RAG pipeline, report analysis, and monitoring.**
 
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11+-blue?logo=python)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-green?logo=fastapi)](https://fastapi.tiangolo.com)
@@ -26,24 +26,26 @@ An intelligent healthcare assistant that:
 
 ## ✨ Key Features
 
-### Intelligent AI
-- **Multi-agent architecture** - Router, Retriever, Reasoner, Validator
-- **5-step reasoning** - Transparent problem analysis
-- **Knowledge graph** - Disease-symptom-drug relationships
+### Core RAG Pipeline
+- **Multi-agent routing** - Classify queries into 7 types (symptom check, drug info, emergency, etc.)
+- **Hybrid retrieval** - FAISS vector search + BM25 keyword matching
+- **Streaming responses** - Real-time answer generation
 - **Confidence scoring** - Multi-factor quality assessment
+- **Source citations** - Grounded answers with references
 
-### Medical Capabilities
-- **Report analysis** - Extract and explain lab values
-- **Emergency detection** - Automatic alert for dangerous symptoms
-- **Drug interactions** - Warn about dangerous combinations
-- **Health recommendations** - Personalized advice based on reports
+### Medical Features
+- **Report analysis** - Upload PDF/images, extract lab values, flag abnormal results
+- **Emergency detection** - Alert for 14 critical symptoms
+- **Drug interaction warnings** - Common dangerous combinations
+- **Health recommendations** - AI-powered dietary and lifestyle advice
+- **Session memory** - Remember conversation context
 
 ### Production Features
 - **Authentication** - JWT tokens with role-based access (Patient, Clinician, Admin)
-- **Database** - SQLite/PostgreSQL for persistent storage
-- **Audit logging** - HIPAA-compliant activity tracking
-- **API keys** - External integration support
-- **Real-time monitoring** - Live metrics and analytics
+- **Database persistence** - SQLite with 7 tables (PostgreSQL-ready)
+- **Audit logging** - Track all user actions
+- **API key management** - For external integrations
+- **Real-time monitoring** - Query metrics, latency, confidence distribution
 
 ---
 
@@ -90,23 +92,23 @@ uvicorn api.main:app --host 0.0.0.0 --port 8000
 
 ## 🏗️ Architecture
 
+**5-Stage Pipeline:**
+
 ```
-User Query
-    ↓
-Authentication & Routing
-    ↓
-Knowledge Graph Enhancement
-    ↓
-Hybrid Retrieval (Vector + Keyword)
-    ↓
-Multi-Step Reasoning (5 steps)
-    ↓
-Clinical Alert Engine
-    ↓
-Response + Citations
-    ↓
-Memory + Monitoring + Audit Log
+1. Router → Classify query intent and route appropriately
+2. Retriever → Hybrid search (vector + keyword) with FAISS
+3. Web/Search → Optional fallback for recent information
+4. Reasoning/Response → Generate grounded answer with citations
+5. Evaluation → Validate quality, confidence, and safety
 ```
+
+**Additional Layers:**
+- Authentication & Authorization
+- Knowledge Graph Enhancement
+- Clinical Alert Engine
+- Session Memory
+- Audit Logging
+- Real-time Monitoring
 
 **See**: [ARCHITECTURE.md](ARCHITECTURE.md) for detailed system design
 

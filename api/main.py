@@ -24,6 +24,7 @@ from agents.reasoning_agent import reasoning_agent
 from api.records import router as records_router
 from api.auth import router as auth_router
 from api.admin import router as admin_router
+from api.routes.reports import router as reports_router
 from services.memory_service import memory_service
 from services.citation_service import citation_service
 from services.monitoring_service import monitoring_service
@@ -104,6 +105,7 @@ app.add_middleware(
 app.include_router(records_router)
 app.include_router(auth_router)
 app.include_router(admin_router)
+app.include_router(reports_router)
 
 
 class ChatRequest(BaseModel):
@@ -135,6 +137,7 @@ class HealthResponse(BaseModel):
     pipeline_loaded: bool
     vector_store_ready: bool
     faiss_index_exists: bool
+    index_size: int
     model: str
     vector_store: str
 
@@ -154,11 +157,22 @@ async def health_check():
     """
     index_path = Path(config.FAISS_INDEX_PATH)
     vs_ready = (index_path / "index.faiss").exists()
+    
+    # Calculate index size
+    index_size = 0
+    if vs_ready and pipeline:
+        try:
+            if hasattr(pipeline, 'retriever') and hasattr(pipeline.retriever, 'vectorstore'):
+                index_size = pipeline.retriever.vectorstore.index.ntotal
+        except:
+            index_size = 0
+    
     return HealthResponse(
         status="healthy" if pipeline else "degraded",
         pipeline_loaded=pipeline is not None,
         vector_store_ready=vs_ready,
         faiss_index_exists=vs_ready,
+        index_size=index_size,
         model=config.OPENAI_MODEL,
         vector_store=config.VECTOR_STORE_TYPE,
     )
