@@ -260,13 +260,20 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### 🔒 Privacy Mode")
 
-    # Check local model status
-    try:
-        local_status = requests.get(f"{API_BASE}/local-model/status", timeout=3).json()
-        local_available = local_status.get("available", False)
-    except Exception:
-        local_available = False
-        local_status = {}
+    # Check local model status (cached to avoid repeated API calls)
+    if "local_status_cache" not in st.session_state:
+        try:
+            local_status = requests.get(f"{API_BASE}/local-model/status", timeout=3).json()
+            local_available = local_status.get("available", False)
+            st.session_state.local_status_cache = {"status": local_status, "available": local_available}
+        except Exception:
+            local_available = False
+            local_status = {}
+            st.session_state.local_status_cache = {"status": {}, "available": False}
+    else:
+        cache = st.session_state.local_status_cache
+        local_status = cache["status"]
+        local_available = cache["available"]
 
     if local_available:
         is_downloaded = local_status.get("downloaded", False)
@@ -343,10 +350,15 @@ with tab_chat:
         else:
             badge = score_badge(msg.get("eval_score"))
             icon  = intent_emoji(msg.get("intent", ""))
-            sources_html = "".join(
-                f'<span class="source-badge">📄 {(s.get("source","") or s.get("metadata",{}).get("source","record") if isinstance(s,dict) else str(s)).split("/")[-1][:30]}</span>'
-                for s in msg.get("sources", [])
-            )
+            sources_list = []
+            for s in msg.get("sources", []):
+                if isinstance(s, dict):
+                    source_path = s.get("source", "") or s.get("metadata", {}).get("source", "record")
+                else:
+                    source_path = str(s)
+                source_name = source_path.split("/")[-1][:30] if "/" in source_path else source_path[:30]
+                sources_list.append(f'<span class="source-badge">📄 {source_name}</span>')
+            sources_html = "".join(sources_list)
             st.markdown(f"""<div class="chat-message assistant">
                 <strong>MediAssist</strong> {icon} {badge}<br><br>
                 {content}

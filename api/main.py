@@ -294,6 +294,70 @@ async def get_stats():
     }
 
 
+class IngestTextRequest(BaseModel):
+    text: str = Field(..., min_length=1, description="Text content to ingest")
+    source_name: str = Field(default="user_input", description="Name/identifier for this text")
+
+
+@app.post("/ingest/text", tags=["System"])
+async def ingest_text(request: IngestTextRequest):
+    """
+    Ingest plain text into the vector store.
+    Useful for adding custom knowledge without file upload.
+    """
+    try:
+        from vectorstore.ingest import DocumentIngestionPipeline
+        from pathlib import Path as _Path
+        import tempfile
+        
+        # Create temporary file with the text
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            f.write(request.text)
+            temp_path = f.name
+        
+        try:
+            pipeline_ingest = DocumentIngestionPipeline()
+            # Check if index exists
+            if pipeline_ingest.index_exists():
+                # Load existing index
+                index, chunks = pipeline_ingest.load_index()
+                
+                # Add new text
+                new_docs = pipeline_ingest._ingest_text_file(temp_path)
+                new_chunks = pipeline_ingest.chunk_documents(new_docs)
+                new_texts = [c["text"] for c in new_chunks]
+                new_embeddings = pipeline_ingest.embed_texts(new_texts)
+                
+                # Add to existing index
+                index.add(new_embeddings)
+                chunks.extend(new_chunks)
+                
+                # Save updated index
+                pipeline_ingest.save_index(index, chunks)
+                
+                logger.success(f"Added {len(new_chunks)} chunks from text input")
+                return {
+                    "status": "success",
+                    "message": f"Ingested {len(new_chunks)} chunks from '{request.source_name}'",
+                    "chunks_added": len(new_chunks),
+                    "total_chunks": len(chunks),
+                }
+            else:
+                # No existing index, create new one
+                pipeline_ingest.run(extra_paths=[temp_path], force_rebuild=True)
+                return {
+                    "status": "success",
+                    "message": f"Created new index with text from '{request.source_name}'",
+                }
+        finally:
+            # Clean up temp file
+            _Path(temp_path).unlink(missing_ok=True)
+            
+    except Exception as e:
+        logger.error(f"Text ingestion failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Ingestion failed: {str(e)}")
+
+
 # ── Local LLM Management Endpoints ───────────────────────────────────────────
 
 @app.get("/local-model/status", tags=["Local LLM"])
