@@ -364,47 +364,52 @@ async def chat(request: ChatRequest):
                 category=metadata.get('category', None)
             ))
         
-        # Get structured reasoning agent
-        try:
-            structured_agent = get_structured_reasoning_agent(
-                api_key=config.OPENAI_API_KEY,
-                model=config.OPENAI_MODEL
-            )
-            
-            # Run structured reasoning
-            reasoning_result = structured_agent.run(
-                query=request.query,
-                route=route_info["type"],
-                retrieved_chunks=retrieved_chunks
-            )
-            
-            # Extract structured fields
-            answer = reasoning_result.answer
-            key_insights = reasoning_result.key_insights
-            possible_considerations = reasoning_result.possible_considerations
-            next_steps = reasoning_result.next_steps
-            safety_note = reasoning_result.safety_note
-            structured_confidence = reasoning_result.confidence
-            
-            # Use structured confidence if higher
-            enhanced_confidence = max(enhanced_confidence, structured_confidence)
-            
-            # Legacy reasoning steps for backward compatibility
-            reasoning_steps = [
-                {"step": "Evidence Analysis", "result": f"Analyzed {len(retrieved_chunks)} sources"},
-                {"step": "Insight Generation", "result": f"Generated {len(key_insights)} key insights"},
-                {"step": "Safety Check", "result": safety_note}
-            ]
-            
-        except Exception as e:
-            logger.error(f"Structured reasoning failed: {e} - falling back to basic response")
-            # Fallback to basic response
-            answer = result.get("response", "")
-            key_insights = []
-            possible_considerations = []
-            next_steps = ["Consult a healthcare professional for personalized advice"]
-            safety_note = "This assistant does not replace professional medical advice."
-            reasoning_steps = []
+        # Get structured reasoning agent (with robust fallback)
+        answer = result.get("response", "")
+        key_insights = []
+        possible_considerations = []
+        next_steps = ["Consult a healthcare professional for personalized advice"]
+        safety_note = "This assistant does not replace professional medical advice."
+        reasoning_steps = []
+        
+        # Try structured reasoning if API key is available
+        if config.OPENAI_API_KEY and retrieved_chunks:
+            try:
+                structured_agent = get_structured_reasoning_agent(
+                    api_key=config.OPENAI_API_KEY,
+                    model=config.OPENAI_MODEL
+                )
+                
+                # Run structured reasoning
+                reasoning_result = structured_agent.run(
+                    query=request.query,
+                    route=route_info["type"],
+                    retrieved_chunks=retrieved_chunks
+                )
+                
+                # Extract structured fields
+                answer = reasoning_result.answer
+                key_insights = reasoning_result.key_insights
+                possible_considerations = reasoning_result.possible_considerations
+                next_steps = reasoning_result.next_steps
+                safety_note = reasoning_result.safety_note
+                structured_confidence = reasoning_result.confidence
+                
+                # Use structured confidence if higher
+                enhanced_confidence = max(enhanced_confidence, structured_confidence)
+                
+                # Legacy reasoning steps for backward compatibility
+                reasoning_steps = [
+                    {"step": "Evidence Analysis", "result": f"Analyzed {len(retrieved_chunks)} sources"},
+                    {"step": "Insight Generation", "result": f"Generated {len(key_insights)} key insights"},
+                    {"step": "Safety Check", "result": safety_note}
+                ]
+                
+                logger.info(f"Structured reasoning complete: {len(key_insights)} insights, {len(next_steps)} steps")
+                
+            except Exception as e:
+                logger.warning(f"Structured reasoning failed: {e} - using fallback")
+                # Keep fallback values already set above
 
         # 11. UPDATE METRICS
         REQUEST_COUNT.labels(intent=route_info["type"]).inc()
