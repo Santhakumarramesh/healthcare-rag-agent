@@ -24,20 +24,32 @@ def _get_embedder():
     """
     Use OpenAI embeddings in production (lightweight, no torch).
     Fall back to SentenceTransformer locally when no API key is set.
+    Raises RuntimeError if neither is available.
     """
-    if config.OPENAI_API_KEY and config.OPENAI_API_KEY not in ("", "sk-your-key-here"):
+    key = (config.OPENAI_API_KEY or "").strip()
+    placeholder = ("sk-your-key-here", "sk-placeholder", "", "sk-")
+    has_real_key = key and not any(key.startswith(p) for p in placeholder) and len(key) > 20
+
+    if has_real_key:
         from langchain_openai import OpenAIEmbeddings
         logger.info("Using OpenAI embeddings (text-embedding-3-small)")
         embedder = OpenAIEmbeddings(
             model="text-embedding-3-small",
-            openai_api_key=config.OPENAI_API_KEY
+            openai_api_key=key,
         )
         return embedder, 1536
-    else:
+
+    # Fallback: SentenceTransformer (local, no API key needed)
+    try:
         from sentence_transformers import SentenceTransformer
-        logger.info(f"Using SentenceTransformer: {config.EMBEDDING_MODEL}")
+        logger.info(f"OpenAI key not set — using SentenceTransformer: {config.EMBEDDING_MODEL}")
         model = SentenceTransformer(config.EMBEDDING_MODEL)
         return model, model.get_sentence_embedding_dimension()
+    except ImportError:
+        raise RuntimeError(
+            "No embedder available. Either set OPENAI_API_KEY or "
+            "run: pip install sentence-transformers"
+        )
 
 
 class DocumentIngestionPipeline:
@@ -134,7 +146,15 @@ class DocumentIngestionPipeline:
                 })
         return documents
 
-    def run(self, extra_pdf_paths: Optional[list] = None, force_rebuild: bool = False):
+    def run(self, extra_paths: Optional[list] = None, force_rebuild: bool = False,
+            # kept for backward compat
+            extra_pdf_paths: Optional[list] = None):
+        """
+        Main ingestion runner.
+        Accepts extra_paths (any file type) or extra_pdf_paths (legacy name).
+        """
+        all_extra = list(extra_paths or []) + list(extra_pdf_paths or [])
+
         if self.index_exists() and not force_rebuild:
             logger.info("Index already exists.")
             return self.load_index()
@@ -142,10 +162,16 @@ class DocumentIngestionPipeline:
         documents = get_documents_as_text()
         logger.info(f"Loaded {len(documents)} base FAQ documents")
 
-        if extra_pdf_paths:
-            for pdf_path in extra_pdf_paths:
-                if os.path.exists(pdf_path):
-                    documents.extend(self.ingest_pdf(pdf_path))
+        for path in all_extra:
+            if not os.path.exists(path):
+                continue
+            suffix = Path(path).suffix.lower()
+            if suffix == ".pdf":
+                documents.extend(self.ingest_pdf(path))
+            elif suffix in (".txt", ".md", ".text"):
+                documents.extend(self._ingest_text_file(path))
+            else:
+                logger.warning(f"Skipping unsupported file type: {path}")
 
         chunks = self.chunk_documents(documents)
         texts = [c["text"] for c in chunks]
@@ -154,10 +180,24 @@ class DocumentIngestionPipeline:
         self.save_index(index, chunks)
         return index, chunks
 
+    def _ingest_text_file(self, file_path: str) -> list:
+        """Ingest a plain-text or markdown file."""
+        text = Path(file_path).read_text(encoding="utf-8", errors="replace")
+        name = Path(file_path).name
+        return [{
+            "text": text,
+            "metadata": {
+                "id": f"txt_{Path(file_path).stem}",
+                "category": "Knowledge Base",
+                "question": f"Content from {name}",
+                "source": file_path,
+            }
+        }]
+
 
 if __name__ == "__main__":
     pipeline = DocumentIngestionPipeline()
     kb_path = Path(__file__).parent.parent / "data" / "healthcare_knowledge_base.md"
     extra = [str(kb_path)] if kb_path.exists() else []
-    pipeline.run(extra_pdf_paths=extra, force_rebuild=True)
+    pipeline.run(extra_paths=extra, force_rebuild=True)
     logger.success(f"Ingestion complete! Index at: {pipeline.index_path}")

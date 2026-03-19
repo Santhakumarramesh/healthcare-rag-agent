@@ -47,7 +47,7 @@ async def lifespan(app: FastAPI):
             pipeline_ingest = DocumentIngestionPipeline()
             kb_path = _Path(__file__).parent.parent / "data" / "healthcare_knowledge_base.md"
             extra = [str(kb_path)] if kb_path.exists() else []
-            pipeline_ingest.run(extra_pdf_paths=extra, force_rebuild=True)
+            pipeline_ingest.run(extra_paths=extra, force_rebuild=True)
             logger.success("Ingest complete.")
         except Exception as e:
             logger.error(f"Ingest failed: {e} — continuing without pre-built index.")
