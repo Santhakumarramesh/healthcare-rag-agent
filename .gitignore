@@ -73,3 +73,5 @@ htmlcov/
 .coverage
 *.db
 *.db-journal
+*.png
+*.db
