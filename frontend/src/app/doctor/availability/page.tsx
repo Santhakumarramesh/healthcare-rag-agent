@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { doctorsApi } from "@/lib/api";
 import toast from "react-hot-toast";
@@ -26,10 +26,11 @@ export default function DoctorAvailabilityPage() {
   const { data } = useQuery({
     queryKey: ["doctor-availability"],
     queryFn: () => doctorsApi.getAvailability().then((r) => r.data),
-    onSuccess: (d: unknown) => {
-      if (d && typeof d === 'object') setSchedule(d as typeof schedule);
-    },
   });
+
+  useEffect(() => {
+    if (data && typeof data === 'object') setSchedule(data as typeof schedule);
+  }, [data]);
 
   const { mutate: saveAvailability, isPending } = useMutation({
     mutationFn: () => doctorsApi.setAvailability(schedule),
