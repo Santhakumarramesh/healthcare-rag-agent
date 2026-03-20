@@ -1,16 +1,16 @@
-# ─────────────────────────────────────────────────────────────────────────────
-# Healthcare RAG Agent — CI/CD Pipeline
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+# Healthcare RAG Agent â CI/CD Pipeline
 #
 # Flow (main branch push):
-#   lint → test → docker-build → docker-push (GHCR) → sync-to-hf-spaces
+#   lint â test â docker-build â docker-push (GHCR) â sync-to-hf-spaces
 #
 # Flow (PR / develop push):
-#   lint → test → docker-build  (no push, no deploy)
+#   lint â test â docker-build  (no push, no deploy)
 #
 # Required GitHub Secrets:
-#   HF_TOKEN   — Hugging Face token with write access to your Space
-#               Get it: huggingface.co/settings/tokens → New token (write)
-# ─────────────────────────────────────────────────────────────────────────────
+#   HF_TOKEN   â Hugging Face token with write access to your Space
+#               Get it: huggingface.co/settings/tokens â New token (write)
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 name: CI / CD
 
@@ -31,7 +31,7 @@ env:
   IMAGE_NAME: healthcare-rag-api
 
 jobs:
-  # ── Job 1: Lint & format check ────────────────────────────────────────────
+  # ââ Job 1: Lint & format check ââââââââââââââââââââââââââââââââââââââââââââ
   lint:
     name: Lint & Format Check
     runs-on: ubuntu-latest
@@ -50,7 +50,7 @@ jobs:
       - name: Run ruff (linter + formatter check)
         run: ruff check . --output-format=github
 
-  # ── Job 2: Unit tests ─────────────────────────────────────────────────────────
+  # ââ Job 2: Unit tests âââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
   test:
     name: Unit Tests
     runs-on: ubuntu-latest
@@ -83,7 +83,7 @@ jobs:
       - name: Run tests
         run: pytest tests/ -v --tb=short
 
-  # ── Job 3: Docker build smoke-test (all branches) ─────────────────────────────
+  # ââ Job 3: Docker build smoke-test (all branches) âââââââââââââââââââââââââââââ
   docker-build:
     name: Docker Build
     runs-on: ubuntu-latest
@@ -92,10 +92,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set lowercase owner
+        run: echo "LOWERCASE_OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Docker image (no push — smoke test only)
+      - name: Build Docker image (no push â smoke test only)
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -104,7 +107,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # ── Job 4: Push to GHCR (main only) ────────────────────────────────────────────
+  # ââ Job 4: Push to GHCR (main only) ââââââââââââââââââââââââââââââââââââââââââââ
   docker-push:
     name: Push to GitHub Container Registry
     runs-on: ubuntu-latest
@@ -134,12 +137,12 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest
-            ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ghcr.io/${{ env.LOWERCASE_OWNER }}/${{ env.IMAGE_NAME }}:latest
+            ghcr.io/${{ env.LOWERCASE_OWNER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # ── Job 5: Sync to Hugging Face Spaces (main only) ───────────────────────────
+  # ââ Job 5: Sync to Hugging Face Spaces (main only) âââââââââââââââââââââââââââ
   sync-to-hf-spaces:
     name: Sync to Hugging Face Spaces
     runs-on: ubuntu-latest
@@ -166,9 +169,9 @@ jobs:
           HF_USERNAME: ${{ vars.HF_USERNAME }}
         run: |
           if [ -z "$HF_TOKEN" ]; then
-            echo "⚠️  HF_TOKEN secret not set — skipping HF Spaces sync."
-            echo "    1. Go to huggingface.co/settings/tokens → New token (write)"
-            echo "    2. Add as GitHub secret: Settings → Secrets → Actions → HF_TOKEN"
+            echo "â ï¸  HF_TOKEN secret not set â skipping HF Spaces sync."
+            echo "    1. Go to huggingface.co/settings/tokens â New token (write)"
+            echo "    2. Add as GitHub secret: Settings â Secrets â Actions â HF_TOKEN"
             echo "    3. Add HF_USERNAME as a repository variable (your HF username)"
             exit 0
           fi
@@ -176,7 +179,7 @@ jobs:
           git config --global user.name "GitHub Actions"
           git remote add hf https://$HF_USERNAME:$HF_TOKEN@huggingface.co/spaces/$HF_USERNAME/healthcare-rag-api
           git push hf main --force
-          echo "✅ Synced to HF Space: huggingface.co/spaces/$HF_USERNAME/healthcare-rag-api"
+          echo "â Synced to HF Space: huggingface.co/spaces/$HF_USERNAME/healthcare-rag-api"
 
       - name: Verify HF Space health
         # Wait for HF to rebuild and check the /health endpoint
@@ -184,21 +187,21 @@ jobs:
           HF_USERNAME: ${{ vars.HF_USERNAME }}
         run: |
           if [ -z "$HF_USERNAME" ]; then
-            echo "⚠️  HF_USERNAME not set — skipping health check."
+            echo "â ï¸  HF_USERNAME not set â skipping health check."
             exit 0
           fi
-          echo "⏳ Waiting 3 min for HF Space to build and start..."
+          echo "â³ Waiting 3 min for HF Space to build and start..."
           sleep 180
-          echo "🔍 Checking API health..."
+          echo "ð Checking API health..."
           for attempt in 1 2 3; do
             status=$(curl -s -o /dev/null -w "%{http_code}" \
               https://$HF_USERNAME-healthcare-rag-api.hf.space/health)
             if [ "$status" = "200" ]; then
-              echo "✅ API is healthy (attempt $attempt)"
+              echo "â API is healthy (attempt $attempt)"
               exit 0
             fi
-            echo "   Attempt $attempt: HTTP $status — retrying in 30s..."
+            echo "   Attempt $attempt: HTTP $status â retrying in 30s..."
             sleep 30
           done
-          echo "❌ Health check failed — check the Space logs at huggingface.co/spaces/$HF_USERNAME/healthcare-rag-api"
+          echo "â Health check failed â check the Space logs at huggingface.co/spaces/$HF_USERNAME/healthcare-rag-api"
           exit 1
