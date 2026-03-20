@@ -17,7 +17,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from loguru import logger
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
-from fastapi.responses import Response, StreamingResponse, JSONResponse
+from fastapi.responses import Response, StreamingResponse, JSONResponse, HTMLResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
 sys.path.append(str(Path(__file__).parent.parent))
@@ -87,9 +88,12 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Healthcare RAG Multi-Agent API",
-    description="Production-grade Healthcare FAQ assistant powered by LangGraph multi-agent RAG.",
-    version="1.0.0",
+    title="HealthCopilot Platform API",
+    description=(
+        "Full healthcare platform API — patient portal, doctor marketplace, "
+        "consultations, prescriptions, insurance, tracking, and RAG-powered AI."
+    ),
+    version="2.0.0",
     lifespan=lifespan,
 )
 
@@ -97,6 +101,19 @@ app = FastAPI(
 _cors_origins = [o.strip() for o in config.CORS_ORIGINS.split(",") if o.strip()]
 if not _cors_origins:
     _cors_origins = ["*"]
+# Always allow the HF Space itself and localhost for development
+_hf_origins = [
+    "https://santhar1500-healthcare-rag-api.hf.space",
+    "https://santhar1500-healthcopilot.static.hf.space",
+    "http://localhost:7860",
+    "http://localhost:3000",
+    # Vercel preview & production — add your actual Vercel URL here
+    "https://healthcopilot.vercel.app",
+    "https://healthcopilot-frontend.vercel.app",
+]
+for _o in _hf_origins:
+    if _o not in _cors_origins:
+        _cors_origins.append(_o)
 
 app.add_middleware(
     CORSMiddleware,
@@ -217,25 +234,33 @@ def _load_routers():
     if _routers_loaded:
         return
     _ensure_db()
-    # Load reports first (critical for Analyze Report page)
-    try:
-        from api.routes.reports import router as reports_router
-        app.include_router(reports_router)
-        logger.info("Reports router loaded")
-    except Exception as e:
-        logger.error(f"Reports router failed: {e}")
-    # Load other routers
-    for name, mod_path, attr in [
-        ("records", "api.records", "router"),
-        ("auth", "api.auth", "router"),
-        ("admin", "api.admin", "router"),
-    ]:
+
+    # ── All domain routers ────────────────────────────────────────────────────
+    domain_routers = [
+        ("reports",       "api.routes.reports",       "router"),
+        ("auth",          "api.routes.auth",           "router"),
+        ("patients",      "api.routes.patients",       "router"),
+        ("doctors",       "api.routes.doctors",        "router"),
+        ("consultations", "api.routes.consultations",  "router"),
+        ("prescriptions", "api.routes.prescriptions",  "router"),
+        ("insurance",     "api.routes.insurance",      "router"),
+        ("tracking",      "api.routes.tracking",       "router"),
+        ("caregiver",     "api.routes.caregiver",      "router"),
+        ("marketplace",   "api.routes.marketplace",    "router"),
+        ("support",       "api.routes.support",        "router"),
+        ("admin",         "api.routes.admin",          "router"),
+        # Legacy routers kept for backwards compat
+        ("records_legacy", "api.records",              "router"),
+    ]
+
+    for name, mod_path, attr in domain_routers:
         try:
             mod = __import__(mod_path, fromlist=[attr])
             app.include_router(getattr(mod, attr))
-            logger.info(f"{name} router loaded")
+            logger.info(f"[Router] {name} loaded ✓")
         except Exception as e:
-            logger.error(f"{name} router failed: {e}")
+            logger.warning(f"[Router] {name} skipped: {e}")
+
     _routers_loaded = True
 
 
@@ -781,9 +806,18 @@ async def reset_conversation():
     return {"message": "Conversation history cleared.", "status": "ok"}
 
 
-@app.get("/", tags=["System"])
+@app.get("/", tags=["System"], response_class=HTMLResponse)
 async def root():
-    return {"name": "Healthcare RAG Multi-Agent API", "version": "1.0.0", "docs": "/docs"}
+    """Serve the HealthCopilot frontend app."""
+    static_path = Path(__file__).parent / "static" / "index.html"
+    if static_path.exists():
+        return FileResponse(str(static_path), media_type="text/html")
+    return HTMLResponse(content="<h1>HealthCopilot API</h1><p><a href='/docs'>API Docs</a></p>")
+
+# Mount static files directory
+_static_dir = Path(__file__).parent / "static"
+if _static_dir.exists():
+    app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
 
 
 # ── Risk Assessment Endpoint ──────────────────────────────────────────────────

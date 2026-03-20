@@ -54,8 +54,8 @@ class AuthService:
         self.algorithm = "HS256"
         self.token_expiry_hours = 24
 
-        # Create demo users if they don't exist
-        self._create_demo_users()
+        # NOTE: Demo user seeding removed from production startup.
+        # Run `python scripts/seed_demo_data.py` instead to seed test data.
 
         logger.info("[AuthService] Initialized with database storage")
 
