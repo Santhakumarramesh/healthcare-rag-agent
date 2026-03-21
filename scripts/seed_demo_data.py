@@ -19,7 +19,9 @@ from sqlalchemy.orm import sessionmaker
 
 from database.models import (
     Base, User, PatientProfile, DoctorProfile, CaregiverLink,
-    Prescription, Product, DoctorAvailability
+    Prescription, Product, DoctorAvailability,
+    Report, Consultation, Alert, CareScore,
+    HydrationLog, SleepLog, ActivityLog, VitalsLog,
 )
 from core.security import hash_password
 
@@ -254,6 +256,101 @@ def seed_database():
         db.add(prescription)
         db.flush()
         print("Created sample prescription for patient")
+
+        # 7. Sample reports for patient
+        report_data = [
+            ("Blood Panel - CBC", "cbc_results.pdf", "analyzed", -5),
+            ("HbA1c Test", "hba1c_march.pdf", "analyzed", -12),
+            ("Chest X-Ray", "chest_xray.pdf", "processing", -1),
+            ("Lipid Profile", "lipid_panel.pdf", "analyzed", -20),
+        ]
+        for rtype, fname, status, days_ago in report_data:
+            db.add(Report(
+                report_id=str(uuid.uuid4()),
+                user_id=patient.user_id,
+                file_name=fname,
+                report_type=rtype,
+                status=status,
+                created_at=datetime.utcnow() + timedelta(days=days_ago),
+            ))
+        db.flush()
+        print("Created 4 sample reports")
+
+        # 8. Upcoming consultation
+        db.add(Consultation(
+            consultation_id=str(uuid.uuid4()),
+            patient_user_id=patient.user_id,
+            doctor_user_id=doctor.user_id,
+            type="video",
+            reason="Follow-up on HbA1c results and medication review",
+            status="scheduled",
+            scheduled_at=datetime.utcnow() + timedelta(days=2),
+            created_at=datetime.utcnow(),
+        ))
+        db.flush()
+        print("Created upcoming consultation")
+
+        # 9. Active alert
+        db.add(Alert(
+            alert_id=str(uuid.uuid4()),
+            user_id=patient.user_id,
+            message="HbA1c of 7.8% is above target. Consider dietary adjustments.",
+            severity="high",
+            alert_type="lab_result",
+            is_acknowledged=False,
+            created_at=datetime.utcnow() - timedelta(hours=3),
+        ))
+        db.flush()
+        print("Created health alert for patient")
+
+        # 10. Care score
+        db.add(CareScore(
+            score_id=str(uuid.uuid4()),
+            user_id=patient.user_id,
+            score=72,
+            medication_adherence=85,
+            activity_score=65,
+            nutrition_score=68,
+            week_start=datetime.utcnow() - timedelta(days=7),
+            created_at=datetime.utcnow(),
+        ))
+        db.flush()
+        print("Created care score for patient")
+
+        # 11. Today's tracking data
+        db.add(HydrationLog(
+            log_id=str(uuid.uuid4()),
+            user_id=patient.user_id,
+            amount_ml=1200,
+            logged_at=datetime.utcnow(),
+        ))
+        db.add(ActivityLog(
+            log_id=str(uuid.uuid4()),
+            user_id=patient.user_id,
+            steps=4200,
+            duration_min=35,
+            activity_type="walking",
+            logged_at=datetime.utcnow(),
+        ))
+        db.add(SleepLog(
+            log_id=str(uuid.uuid4()),
+            user_id=patient.user_id,
+            duration_hours=7.5,
+            quality_score=80,
+            sleep_date=datetime.utcnow().date(),
+            created_at=datetime.utcnow(),
+        ))
+        db.add(VitalsLog(
+            log_id=str(uuid.uuid4()),
+            user_id=patient.user_id,
+            systolic_bp=128,
+            diastolic_bp=82,
+            heart_rate=74,
+            blood_glucose=142,
+            logged_at=datetime.utcnow() - timedelta(hours=2),
+        ))
+        db.flush()
+        print("Created today's tracking data")
 
         # Commit all changes
         db.commit()
