@@ -45,16 +45,17 @@ export default function LoginPage() {
   };
 
   const loginAsDemo = (role: "patient" | "doctor" | "admin" | "caregiver") => {
+    const now = new Date().toISOString();
     const demoUsers = {
-      patient:   { user_id: "demo_patient",   email: "patient@demo.ai",   full_name: "John Smith",       role: "patient",   is_verified: true },
-      doctor:    { user_id: "demo_doctor",     email: "doctor@demo.ai",    full_name: "Dr. Sarah Johnson", role: "doctor",    is_verified: true },
-      admin:     { user_id: "demo_admin",      email: "admin@demo.ai",     full_name: "Admin User",        role: "admin",     is_verified: true },
-      caregiver: { user_id: "demo_caregiver",  email: "care@demo.ai",      full_name: "Jane Smith",        role: "caregiver", is_verified: true },
+      patient:   { id: "demo_patient",   email: "patient@demo.ai",   full_name: "John Smith",        role: "patient",   is_verified: true, created_at: now },
+      doctor:    { id: "demo_doctor",    email: "doctor@demo.ai",    full_name: "Dr. Sarah Johnson", role: "doctor",    is_verified: true, created_at: now },
+      admin:     { id: "demo_admin",     email: "admin@demo.ai",     full_name: "Admin User",        role: "admin",     is_verified: true, created_at: now },
+      caregiver: { id: "demo_caregiver", email: "care@demo.ai",      full_name: "Jane Smith",        role: "caregiver", is_verified: true, created_at: now },
     };
     const user = demoUsers[role];
     saveTokens("demo_access_token", "demo_refresh_token");
-    saveUser(user as Parameters<typeof saveUser>[0]);
-    setUser(user as Parameters<typeof setUser>[0]);
+    saveUser(user);
+    setUser(user);
     toast.success(`Welcome, ${user.full_name.split(" ")[0]}! (Demo mode)`);
     router.push(getRedirectPath(role));
   };
