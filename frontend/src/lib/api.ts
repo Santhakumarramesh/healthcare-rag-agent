@@ -29,8 +29,10 @@ api.interceptors.response.use(
           const { data } = await axios.post(`${API_URL}/auth/refresh`, {
             refresh_token: refresh,
           });
-          Cookies.set("access_token", data.access_token, { expires: 1 });
-          original.headers.Authorization = `Bearer ${data.access_token}`;
+          // Backend returns { access_token, refresh_token, token_type, user }
+          const newToken = data.access_token;
+          Cookies.set("access_token", newToken, { expires: 1 });
+          original.headers.Authorization = `Bearer ${newToken}`;
           return api(original);
         } catch {
           Cookies.remove("access_token");

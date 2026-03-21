@@ -107,9 +107,12 @@ _hf_origins = [
     "https://santhar1500-healthcopilot.static.hf.space",
     "http://localhost:7860",
     "http://localhost:3000",
-    # Vercel preview & production — add your actual Vercel URL here
+    # Vercel preview & production
     "https://healthcopilot.vercel.app",
     "https://healthcopilot-frontend.vercel.app",
+    "https://carecopilot-ai-eight.vercel.app",
+    # Allow any Vercel preview deployments for this project
+    "https://carecopilot-ai.vercel.app",
 ]
 for _o in _hf_origins:
     if _o not in _cors_origins:
@@ -119,7 +122,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
 )
 

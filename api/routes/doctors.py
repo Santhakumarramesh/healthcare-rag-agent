@@ -15,6 +15,7 @@ from schemas.doctor import (
 router = APIRouter(prefix="/doctors", tags=["Doctors"])
 
 
+@router.get("/search", response_model=list[DoctorListResponse])
 @router.get("/", response_model=list[DoctorListResponse])
 def search_doctors(
     query: DoctorSearchQuery = Depends(),
@@ -162,6 +163,7 @@ def update_doctor_profile(
 
 
 @router.get("/availability/list")
+@router.get("/availability")
 def get_doctor_availability(
     user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -180,6 +182,7 @@ def get_doctor_availability(
 
 
 @router.post("/availability/set")
+@router.post("/availability")
 def set_doctor_availability(
     day_of_week: int,
     start_time: str,

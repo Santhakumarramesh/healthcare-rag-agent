@@ -7,12 +7,19 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class RegisterRequest(BaseModel):
-    """User registration request"""
+    """User registration request — accepts both 'name' and 'full_name' from frontend."""
     email: EmailStr
     password: str = Field(..., min_length=8)
-    name: str = Field(..., min_length=1)
+    # Accept 'full_name' (frontend field) with 'name' as fallback alias
+    full_name: Optional[str] = None
+    name: Optional[str] = None
     role: str = Field(default="patient")
     phone: Optional[str] = None
+
+    @property
+    def display_name(self) -> str:
+        """Return the user's name regardless of which field was sent."""
+        return self.full_name or self.name or "User"
 
     @field_validator("password")
     @classmethod
@@ -62,28 +69,25 @@ class RefreshTokenRequest(BaseModel):
     refresh_token: str
 
 
-class AuthResponse(BaseModel):
-    """Authentication response"""
-    user_id: str
+class UserResponse(BaseModel):
+    """User profile response — matches frontend UserResponse interface."""
+    id: str
+    full_name: str
     email: str
-    name: str
     role: str
-    access_token: str
-    refresh_token: str
-    expires_at: datetime
+    is_verified: bool
+    created_at: datetime
 
     class Config:
         from_attributes = True
 
 
-class UserResponse(BaseModel):
-    """User profile response"""
-    user_id: str
-    email: str
-    name: str
-    role: str
-    is_verified: bool
-    created_at: datetime
+class AuthResponse(BaseModel):
+    """Authentication response — matches frontend AuthResponse interface."""
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    user: UserResponse
 
     class Config:
         from_attributes = True

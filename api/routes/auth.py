@@ -43,7 +43,7 @@ def register(request: RegisterRequest, db: Session = Depends(get_db)):
         email=request.email,
         phone=request.phone,
         password_hash=hash_password(request.password),
-        name=request.name,
+        name=request.display_name,
         role=request.role,
         is_active=True,
         is_verified=False
@@ -69,13 +69,17 @@ def register(request: RegisterRequest, db: Session = Depends(get_db)):
     refresh_token = create_refresh_token(user.user_id)
 
     return {
-        "user_id": user.user_id,
-        "email": user.email,
-        "name": user.name,
-        "role": user.role,
         "access_token": access_token,
         "refresh_token": refresh_token,
-        "expires_at": datetime.utcnow() + timedelta(hours=1)
+        "token_type": "bearer",
+        "user": {
+            "id": user.user_id,
+            "full_name": user.name,
+            "email": user.email,
+            "role": user.role,
+            "is_verified": user.is_verified,
+            "created_at": user.created_at or datetime.utcnow(),
+        }
     }
 
 
@@ -110,13 +114,17 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
     refresh_token = create_refresh_token(user.user_id)
 
     return {
-        "user_id": user.user_id,
-        "email": user.email,
-        "name": user.name,
-        "role": user.role,
         "access_token": access_token,
         "refresh_token": refresh_token,
-        "expires_at": datetime.utcnow() + timedelta(hours=1)
+        "token_type": "bearer",
+        "user": {
+            "id": user.user_id,
+            "full_name": user.name,
+            "email": user.email,
+            "role": user.role,
+            "is_verified": user.is_verified,
+            "created_at": user.created_at or datetime.utcnow(),
+        }
     }
 
 
@@ -276,13 +284,17 @@ def refresh_token(request: RefreshTokenRequest, db: Session = Depends(get_db)):
     new_refresh_token = create_refresh_token(user.user_id)
 
     return {
-        "user_id": user.user_id,
-        "email": user.email,
-        "name": user.name,
-        "role": user.role,
         "access_token": access_token,
         "refresh_token": new_refresh_token,
-        "expires_at": datetime.utcnow() + timedelta(hours=1)
+        "token_type": "bearer",
+        "user": {
+            "id": user.user_id,
+            "full_name": user.name,
+            "email": user.email,
+            "role": user.role,
+            "is_verified": user.is_verified,
+            "created_at": user.created_at or datetime.utcnow(),
+        }
     }
 
 
@@ -292,9 +304,9 @@ def get_current_user_info(user: dict = Depends(get_current_user)):
     Get current authenticated user info.
     """
     return {
-        "user_id": user["user_id"],
+        "id": user["user_id"],
+        "full_name": user["name"],
         "email": user["email"],
-        "name": user["name"],
         "role": user["role"],
         "is_verified": user.get("is_verified", False),
         "created_at": user.get("created_at", datetime.utcnow())
