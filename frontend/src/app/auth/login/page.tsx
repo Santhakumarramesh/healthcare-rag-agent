@@ -44,6 +44,21 @@ export default function LoginPage() {
     }
   };
 
+  const loginAsDemo = (role: "patient" | "doctor" | "admin" | "caregiver") => {
+    const demoUsers = {
+      patient:   { user_id: "demo_patient",   email: "patient@demo.ai",   full_name: "John Smith",       role: "patient",   is_verified: true },
+      doctor:    { user_id: "demo_doctor",     email: "doctor@demo.ai",    full_name: "Dr. Sarah Johnson", role: "doctor",    is_verified: true },
+      admin:     { user_id: "demo_admin",      email: "admin@demo.ai",     full_name: "Admin User",        role: "admin",     is_verified: true },
+      caregiver: { user_id: "demo_caregiver",  email: "care@demo.ai",      full_name: "Jane Smith",        role: "caregiver", is_verified: true },
+    };
+    const user = demoUsers[role];
+    saveTokens("demo_access_token", "demo_refresh_token");
+    saveUser(user as Parameters<typeof saveUser>[0]);
+    setUser(user as Parameters<typeof setUser>[0]);
+    toast.success(`Welcome, ${user.full_name.split(" ")[0]}! (Demo mode)`);
+    router.push(getRedirectPath(role));
+  };
+
   return (
     <div className="min-h-screen bg-mesh flex items-center justify-center px-5 py-12">
       <div className="w-full max-w-sm space-y-8">
@@ -132,6 +147,33 @@ export default function LoginPage() {
               )}
             </button>
           </form>
+
+          {/* Divider */}
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-px bg-outline-variant" />
+            <span className="text-xs text-on-surface-variant font-medium">or try a demo</span>
+            <div className="flex-1 h-px bg-outline-variant" />
+          </div>
+
+          {/* Demo role buttons */}
+          <div className="grid grid-cols-2 gap-2">
+            {([
+              { role: "patient",   label: "Patient",   icon: "person" },
+              { role: "doctor",    label: "Doctor",    icon: "stethoscope" },
+              { role: "admin",     label: "Admin",     icon: "admin_panel_settings" },
+              { role: "caregiver", label: "Caregiver", icon: "family_restroom" },
+            ] as const).map(({ role, label, icon }) => (
+              <button
+                key={role}
+                type="button"
+                onClick={() => loginAsDemo(role)}
+                className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-outline-variant bg-surface-variant/50 hover:bg-primary/5 hover:border-primary/40 transition-colors text-sm font-medium text-on-surface-variant hover:text-primary"
+              >
+                <span className="material-symbols-outlined text-base">{icon}</span>
+                {label}
+              </button>
+            ))}
+          </div>
 
           <div className="text-center text-sm text-on-surface-variant">
             Don&apos;t have an account?{" "}
